@@ -33,6 +33,7 @@ from ingestion.transactions import ingest_transactions
 from market.prices import refresh_prices
 from market.external_links import configure_external_links
 from ingestion.tax import ingest_tax
+from ingestion.json_io import read_json, write_json
 from portfolio import (
     build_holdings,
     build_current_holdings,
@@ -59,7 +60,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 def run_ingestion(app):
     # Application-level orchestration around ingestion services.
     config = app.state.config
-    output_file = Path(config.server.cache_dir) / config.cache.transactions_file
+    output_file = Path(app.state.cache_dir) / config.cache.transactions_file
 
     try:
         result = ingest_transactions(datasets=config.datasets, output_file=output_file)
@@ -78,7 +79,7 @@ def run_ingestion(app):
 def run_tax_ingestion(app): 
     # Application-level orchestration around tax ingestion services.
     config = app.state.config
-    output_file = (Path(config.server.cache_dir) / config.cache.tax_file)
+    output_file = (Path(app.state.cache_dir) / config.cache.tax_file)
 
     try:
         result = ingest_tax(datasets=config.datasets, output_file=output_file)
@@ -102,8 +103,8 @@ def run_tax_ingestion(app):
 def run_price_refresh(app):
     # Application-level orchestration around price services.
     config = app.state.config
-    output_file = Path(config.server.cache_dir) / config.cache.price_snapshot
-    transactions_file = Path(config.server.cache_dir) / config.cache.transactions_file
+    output_file = Path(app.state.cache_dir) / config.cache.price_snapshot
+    transactions_file = Path(app.state.cache_dir) / config.cache.transactions_file
 
     result = refresh_prices(transactions=app.state.transactions, output_file=output_file)
 
@@ -113,16 +114,10 @@ def run_price_refresh(app):
     # Persist the price-enriched transactions.
     # refresh_prices() owns price_snapshot.json; application-level
     # orchestration owns persistence of the updated transactions.
-    transactions_file.write_text(
-        json.dumps(
-            [
-                transaction.model_dump(mode="json")
-                for transaction in app.state.transactions
-            ],
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    write_json(transactions_file,
+        [ transaction.model_dump(mode="json")
+         for transaction in app.state.transactions ] )
+    
     return result  # Returns the status and transactions
 
 def refresh_data(app):
@@ -885,11 +880,7 @@ def _save_settings_section(section, section_data, config):
 
     config_file = _settings_config_file()
 
-    if config_file.exists():
-        with config_file.open("r", encoding="utf-8") as f:
-            override_config = json.load(f)
-    else:
-        override_config = {}
+    override_config = read_json(config_file, default={})
 
     override_config[section] = section_data
 

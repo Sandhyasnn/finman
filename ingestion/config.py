@@ -1,9 +1,10 @@
 from pathlib import Path
-import json
 import os
 from typing import Any, Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from ingestion.json_io import read_json
 
 # ============================================================
 # FinMan Configuration
@@ -352,16 +353,6 @@ class FinManConfig(BaseModel):
 # ============================================================
 # Internal configuration functions
 # ============================================================
-def _load_json_file(path: Path) -> dict:
-    """
-    Load and parse a JSON configuration file.
-
-    Returns: Configuration as a Python dictionary.
-    Raises: File-related or JSON parsing errors from the underlying file operation.
-    """
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
 def _merge_config(base: dict, override: dict) -> dict:
     """
     Recursively merge an environment-specific configuration into the base configuration.
@@ -448,14 +439,14 @@ def load_config(base_dir: Path) -> FinManConfig:
         config.json
         config.dev (or prod).json
     """
-    config = _load_json_file(base_dir / "config.json")
+    config = read_json(base_dir / "config.json")
 
     environment = get_config_environment()
 
     override_file = base_dir / f"config.{environment}.json"
 
     if override_file.exists():
-        override = _load_json_file(override_file)
+        override = read_json(override_file)
         config = _merge_config(config, override)
 
     config = _resolve_config_paths(config, base_dir)

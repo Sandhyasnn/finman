@@ -1,0 +1,327 @@
+FINMAN DEVELOPMENT SETUP ON A NEW WINDOWS MACHINE
+====================================================
+
+Purpose
+-------
+This document explains how to set up the FinMan DEVELOPMENT environment on
+a new Windows machine using the private GitHub repository.
+
+GitHub repository
+-----------------
+https://github.com/sowmyanms/finman.git
+
+IMPORTANT PRIVACY RULE
+----------------------
+GitHub contains FinMan application source code and selected documentation.
+
+The following are intentionally NOT stored in GitHub and must be transferred to a development machine separately 
+if the new machine needs the existing FinMan data/configuration:
+    portfolioinputs/
+    cache/
+    logs/
+    config.json
+    config.dev.json
+    config.prod.json
+    venv-finman/
+
+DO NOT commit or push these files/folders.
+
+The cache contains personal financial transaction/tax data. The config files
+contain local configuration and secrets.
+
+Prerequisites
+-------------
+1. Windows machine.
+2. Git installed.
+3. Python 3.13.x installed.
+4. VS Code installed.
+5. Access to the private GitHub repository.
+6. GitHub authentication configured when cloning/pushing.
+
+The current FinMan development environment uses:
+    Python 3.13.9
+    Virtual environment: venv-finman
+
+STEP 1 - Clone FinMan
+---------------------
+Open Command Prompt or the VS Code terminal and go to the directory where you keep projects.
+Example:
+    cd C:\Projects
+
+Clone the repository:
+    git clone https://github.com/sowmyanms/finman.git
+
+Enter the project:
+    cd finman
+
+The repository should contain the application source, including folders such as:
+    ai/
+    ingestion/
+    market/
+    static/
+    templates/
+
+and files such as:
+    finman.py
+    portfolio.py
+    tax.py
+    requirements.txt
+
+STEP 2 - Open FinMan in VS Code
+-------------------------------
+From the FinMan directory:
+
+    code .
+
+Alternatively, in VS Code use:
+
+    File -> Open Folder -> C:\Projects\finman
+
+VS Code should recognize the Git repository automatically.
+
+STEP 3 - Create the Python virtual environment
+------------------------------------------------
+The existing venv-finman environment is NOT in GitHub.
+
+Create a new environment:
+    python -m venv venv-finman
+
+Activate it:
+    venv-finman\Scripts\activate
+
+The terminal should show:
+    (venv-finman) C:\Projects\finman>
+
+STEP 4 - Select the Python interpreter in VS Code
+--------------------------------------------------
+In VS Code:
+    Ctrl + Shift + P
+
+Select:
+    Python: Select Interpreter
+
+Choose the FinMan environment:
+    venv-finman
+
+The project also contains a VS Code setting that points to:
+    ${workspaceFolder}\venv-finman\Scripts\python.exe
+
+If VS Code does not automatically select it, select the interpreter manually.
+
+STEP 5 - Install dependencies
+------------------------------
+With venv-finman activated:
+    python -m pip install --upgrade pip
+
+Then:
+    pip install -r requirements.txt
+
+If the application has additional setup requirements discovered from the existing FinMan setup scripts, 
+follow those scripts rather than changing the application code.
+
+STEP 6 - Verify Python
+----------------------
+Run:
+    python --version
+
+Expected current development version:
+    Python 3.13.9
+
+Run:
+    where python
+
+The first result should be:
+    C:\Projects\finman\venv-finman\Scripts\python.exe
+
+Other system Python installations may also be listed. That is normal as long
+as the active/first interpreter is the venv-finman interpreter.
+
+STEP 7 - Copy private FinMan configuration
+-------------------------------------------
+The repository deliberately does NOT contain:
+    config.json
+    config.dev.json
+    config.prod.json
+
+If this new machine is intended to reproduce the existing development environment, copy the appropriate 
+configuration files from the existing development machine to:
+    C:\Projects\finman\
+
+DO NOT put the contents of these files into GitHub.
+
+In particular, config.json contains secrets/API credentials. Do not paste
+those secrets into GitHub, source files, issues, documentation, or chat.
+
+STEP 8 - Copy private financial data (only if required)
+--------------------------------------------------------
+If this new development machine needs the existing FinMan financial data,
+copy the following folders from the existing development environment:
+
+    portfolioinputs\
+    cache\
+
+Place them directly under:
+
+    C:\Projects\finman\
+
+IMPORTANT:
+These folders are intentionally excluded from Git.
+
+Do not run "git add -f" on them.
+Do not remove their entries from .gitignore.
+Do not upload them to GitHub.
+
+If the new machine is only being used for code development/testing and does
+not need the existing personal financial data, do NOT copy these folders.
+
+STEP 9 - Logs
+-------------
+The logs directory is local only.
+
+If needed, FinMan can create/use:
+    C:\Projects\finman\logs\
+
+Do not commit logs to GitHub.
+
+STEP 10 - Verify Git privacy before development
+-----------------------------------------------
+From the FinMan directory run:
+    git status
+
+The working tree should normally be clean immediately after cloning.
+
+You can also run:
+    git status --ignored
+
+Sensitive/local items such as the following should be ignored:
+    cache/
+    config.json
+    config.dev.json
+    config.prod.json
+    logs/
+    venv-finman/
+    __pycache__/
+
+The portfolioinputs/ directory is also intended to be ignored when it exists.
+
+If any personal financial data or real configuration/secrets appear under"Changes to be committed"
+ or as untracked files, STOP and fix .gitignore before committing or pushing anything.
+
+STEP 11 - Run FinMan
+--------------------
+Use the existing FinMan development startup procedure.
+
+The repository contains the existing development/startup scripts, including:
+    devstart.bat
+    finman_setup.bat
+    finman_actv.bat
+    finman_del.bat
+
+Use the same procedure as on the existing development machine.
+
+Do not change configuration or startup scripts just because the project is
+being moved to another machine.
+
+STEP 12 - VS Code Source Control
+--------------------------------
+Use VS Code's Source Control panel for normal Git work.
+
+Normal workflow:
+    Edit code
+        |
+    Test FinMan
+        |
+    Source Control
+        |
+    Review changed files
+        |
+    Stage changes
+        |
+    Commit
+        |
+    Sync / Push
+
+Before every commit, check the list of files being committed.
+
+Never commit:
+    portfolioinputs/
+    cache/
+    logs/
+    config.json
+    config.dev.json
+    config.prod.json
+    venv-finman/
+
+STEP 13 - Getting future code changes
+--------------------------------------
+The GitHub repository is the source of truth for FinMan application code.
+
+To get the latest code on this machine:
+    git pull
+
+Or use VS Code's Sync/Pull controls.
+
+Do NOT use Git pull as a method of transferring the private financial data.
+The data remains local to each machine.
+
+STEP 14 - Sending changes back to GitHub
+----------------------------------------
+After making and testing code changes in VS Code:
+
+1. Open Source Control.
+2. Review the changed files.
+3. Stage the intended changes.
+4. Enter a meaningful commit message.
+5. Commit.
+6. Sync/Push.
+
+Example commit messages:
+    Fix tax summary calculation
+    Improve mobile portfolio view
+    Add foreign share price handling
+
+STEP 15 - If the machine is rebuilt
+------------------------------------
+If the machine is lost/rebuilt, repeat:
+    Install Git
+    Install Python
+    Install VS Code
+    Clone FinMan
+    Create venv-finman
+    Install requirements.txt
+    Select venv-finman in VS Code
+    Copy required private config files
+    Copy portfolioinputs/cache only if needed
+    Run FinMan
+    Test
+
+GitHub provides the application source code.
+
+The private financial data and secrets must be recovered separately.
+
+CURRENT FINMAN DEVELOPMENT ARCHITECTURE
+----------------------------------------
+GitHub/private repository:
+    Application source code
+    Templates
+    Static application assets/reference data
+    Selected documentation
+    requirements.txt
+    .gitignore
+    VS Code project interpreter setting
+
+Local machine only:
+    venv-finman/
+    portfolioinputs/
+    cache/
+    logs/
+    config.json
+    config.dev.json
+    config.prod.json
+
+IMPORTANT FINAL CHECK
+---------------------
+GitHub should be treated as the portable source-code repository for FinMan,
+NOT as the repository for personal financial information.
+
+If in doubt about whether a file is safe to commit, do not commit it until it has been reviewed.

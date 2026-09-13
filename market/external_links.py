@@ -7,9 +7,10 @@ DESIGN PRINCIPLES (NON-NEGOTIABLE):
 - Prefer canonical, symbol-based URLs.
 - Zero dead links, zero redirects, zero surprises.
 """
-import json, os
 from pathlib import Path
 from typing import Dict
+
+from ingestion.json_io import read_json
 
 # Project root = one level above /market
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -52,9 +53,9 @@ def load_mf_master() -> Dict[str, dict]:
         if not path.exists():
             raise FileNotFoundError(f"mf_master.json not found at {path}")
                 
-        with path.open("r", encoding="utf-8") as f:
-            raw = json.load(f)
-            _MF_MASTER = raw.get("funds", {})
+        raw = read_json(path)
+        _MF_MASTER = raw.get("funds", {})
+        
     return _MF_MASTER
 
 # -------------------------------------------------

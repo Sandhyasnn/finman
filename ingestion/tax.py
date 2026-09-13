@@ -7,7 +7,6 @@ maintains per-dataset caches, and writes the combined tax.json cache.
 Dataset failures are isolated. When a dataset fails and a previous valid cache exists, the previous 
 records are retained and the overall status is reported as partial.
 """
-import json
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -16,8 +15,9 @@ from ingestion.config import DatasetConfig
 from ingestion.excel_reader import read_excel_rows
 from ingestion.mapper import map_tax_row, validate_tax_mapping
 from ingestion.models import TaxTransaction
-from logger import logger
+from ingestion.json_io import read_json, write_json
 
+from logger import logger
 
 class DatasetTaxIngestionResult(BaseModel):
     dataset: str
@@ -101,16 +101,9 @@ def ingest_tax(datasets, output_file: str | Path) -> dict:
 
             dataset_tax = result.tax
 
-            dataset_cache_file.write_text(
-                json.dumps(
-                    [
-                        record.model_dump(mode="json")
-                        for record in dataset_tax
-                    ],
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
+            write_json(dataset_cache_file,
+                [ record.model_dump(mode="json")
+                 for record in dataset_tax] )
 
             all_tax.extend(dataset_tax)
 
@@ -129,7 +122,7 @@ def ingest_tax(datasets, output_file: str | Path) -> dict:
 
             if dataset_cache_file.exists():
 
-                old_tax = json.loads(dataset_cache_file.read_text(encoding="utf-8") )
+                old_tax = read_json(dataset_cache_file, default=[])
 
                 retained_tax = [
                     TaxTransaction.model_validate(record)
@@ -161,18 +154,9 @@ def ingest_tax(datasets, output_file: str | Path) -> dict:
                     }
                 )
 
-    output_path.parent.mkdir(parents=True, exist_ok=True,)
-
-    output_path.write_text(
-        json.dumps(
-            [
-                record.model_dump(mode="json")
-                for record in all_tax
-            ],
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    write_json(output_path,
+        [ record.model_dump(mode="json")
+         for record in all_tax] )
 
     has_retained_dataset = any(
         result["status"] == "retained"

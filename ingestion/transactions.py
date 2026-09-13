@@ -7,7 +7,6 @@ transaction rows, maintains per-dataset caches, and writes the combined transact
 This module deliberately stops at normalized transactions.
 """
 from pydantic import BaseModel
-import json
 from pathlib import Path
 
 from ingestion.config import DatasetConfig
@@ -16,6 +15,7 @@ from ingestion.models import Transaction
 
 from ingestion.excel_reader import read_excel_rows
 from ingestion.mapper import map_transaction_row, validate_mapping, apply_row_filter
+from ingestion.json_io import read_json, write_json
 
 # Normalized FinMan investment transaction.
 # Represents the common transaction structure produced by ingestion from all supported Excel datasets.
@@ -119,16 +119,9 @@ def ingest_transactions(datasets, output_file: str | Path) -> DatasetIngestionRe
             # Extract the transaction part from the result
             dataset_transactions = result.transactions
             # Write the transactions set to a json file defined before the try statemeent
-            dataset_cache_file.write_text(
-                json.dumps(
-                    [
-                        transaction.model_dump(mode="json")
-                        for transaction in dataset_transactions
-                    ],
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
+            write_json(dataset_cache_file,
+                [ transaction.model_dump(mode="json")
+                 for transaction in dataset_transactions ] )
 
             # Simulatamneouly append the transactions to the all_transactions / overall transactions
             for transaction in dataset_transactions:
@@ -151,7 +144,7 @@ def ingest_transactions(datasets, output_file: str | Path) -> DatasetIngestionRe
 
             if dataset_cache_file.exists():
                 # Since the new load failed try to get it from the existing json file for this dataset
-                old_transactions = json.loads(dataset_cache_file.read_text(encoding="utf-8") )
+                old_transactions = read_json(dataset_cache_file, default=[])
 
                 # Again append the transactions to the all_transactions / overall transactions
                 for transaction_data in old_transactions:
@@ -186,17 +179,9 @@ def ingest_transactions(datasets, output_file: str | Path) -> DatasetIngestionRe
                 )
 
     # Write the all_transactions / overall transactions to the json file
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(
-            [
-                transaction.model_dump(mode="json")
-                for transaction in all_transactions
-            ],
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    write_json(output_path,
+        [ transaction.model_dump(mode="json")
+         for transaction in all_transactions] )
 
     logger.info("Wrote %d transactions to '%s'", len(all_transactions), output_path)
 

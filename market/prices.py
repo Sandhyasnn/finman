@@ -11,6 +11,8 @@ from market.holdings import get_price_securities, YAHOO_ASSET_TYPES_US
 from market.yahoo_provider import YahooPriceProvider
 from market.amfi_provider import AMFINavProvider
 from market.external_links import load_mf_master
+from ingestion.json_io import read_json, write_json
+
 from logger import logger
 
 def _load_snapshot(path: str | Path) -> dict:
@@ -20,7 +22,7 @@ def _load_snapshot(path: str | Path) -> dict:
         return {"updated_at": None, "prices": {}, "stale": []}
 
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return read_json(path)
     except (OSError, json.JSONDecodeError):
         logger.warning("Unable to read previous price snapshot: %s", path)
         return {"updated_at": None, "prices": {}, "stale": []}
@@ -198,10 +200,7 @@ def refresh_prices(transactions: list[Transaction], output_file: str | Path) -> 
                 "stale": stale, "stale_exchange_rates": stale_exchange_rates,}
 
     # Write the prices back to the price snapshot json for persistence
-    Path(output_file).write_text(
-        json.dumps(snapshot, indent=2),
-        encoding="utf-8",
-    )
+    write_json(output_file, snapshot)
 
     logger.info(f"Got Prices: {len(yahoo_prices)} Stocks, "f"{len(mf_prices)} Mutual Funds. "f"USD/INR: {usd_inr_rate:.2f} ({fx_status}).")
     return {
