@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="/static/settings.css">
+{% endblock %}
+
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+
+<header class="settings-header">
+    <div>
+        <p class="eyebrow">FINMAN</p>
+        <h1>Settings</h1>
+        <p class="settings-subtitle">Effective configuration</p>
+    </div>
+
+    <div>
+        <a href="{{ return_url }}">← Back</a>
+    </div>
+</header>
+
+<section class="settings-info">
+    <div><strong>Environment</strong><span>{{ environment }}</span></div>
+    <div><strong>Override file</strong><span>{{ override_file }}</span></div>
+    <div><strong>Status</strong><span>Changes take effect after restarting FinMan.</span></div>
+</section>
+
+{% if saved %}
+<section class="settings-message success">
+    Saved <strong>{{ saved }}</strong> successfully. Restart FinMan for the change to take effect.
+</section>
+{% endif %}
+
+{% if error %}
+<section class="settings-message error">
+    <strong>Could not save settings:</strong>{{ error }}
+</section>
+{% endif %}
+
+<!-- ============================================================
+     EDITABLE SETTINGS
+     ============================================================ -->
+
+<section class="settings-section">
+    <div class="section-heading">
+        <div>
+            <h2>Editable Configuration</h2>
+            <p>Select a section to edit its settings using the standard configuration editor.</p>
+        </div>
+    </div>
+
+    <div class="settings-cards">
+        {% for section in editable_sections %}
+        <article class="settings-card">
+            <div>
+                <h3>{{ section.title }}</h3>
+                <p>{{ section.description }}</p>
+            </div>
+            <a class="settings-edit-button"
+               href="/settings/edit/{{ section.name }}?return_url={{ return_url | urlencode }}">
+                Edit
+            </a>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+
+
+<!-- ============================================================
+     EFFECTIVE CONFIGURATION
+     ============================================================ -->
+
+<section class="settings-section">
+    <div class="section-heading">
+        <div>
+            <h2>Effective Configuration</h2>
+            <p>
+                Complete configuration currently loaded by FinMan.
+                Sensitive values are masked.
+            </p>
+        </div>
+    </div>
+
+    <pre class="effective-config">{{ config | tojson(indent=2) }}</pre>
+</section>
+
+{% endblock %}

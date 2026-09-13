@@ -1,0 +1,307 @@
+/* =========================================================
+   detailedholding-styles.css
+
+   Shared styles for:
+     • holding_detail.html
+     • tax_holding_detail.html
+
+   PURPOSE
+   -------
+   Keeps the existing desktop detailed-holding layout while providing a usable mobile layout.
+
+   DESKTOP
+   -------
+   • Header and summary remain fixed.
+   • Transactions use the remaining viewport height.
+   • Transaction table header remains sticky.
+
+   MOBILE PORTRAIT
+   ---------------
+   • Summary is converted from a 7-column table into a 4 + 3 metric grid so it fits on a phone 
+     without horizontal scrolling.
+   • Transactions remain a horizontally scrollable table, since they contain 8 columns and 
+     are better suited to scrolling.
+
+   MOBILE LANDSCAPE
+   ----------------
+   Landscape phones have much less vertical space. The fixed-height desktop flex layout is
+   therefore relaxed so the complete page can scroll vertically.
+
+   IMPORTANT
+   ---------
+   This stylesheet is loaded only by the two detailed holding pages, so the general body/header
+   selectors below are intentionally scoped by stylesheet usage.
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   DEFAULT TABLE LAYOUT
+
+   Keep the existing desktop tables evenly distributed.
+   The mobile rules below override this where required.
+   --------------------------------------------------------- */
+table {
+   width: 100%;
+   table-layout: fixed;
+}
+
+th:nth-child(1), td:nth-child(1) { width: 12%; }
+th:nth-child(2), td:nth-child(2) { width: 12%; }
+th:nth-child(3), td:nth-child(3) { width: 12%; }
+th:nth-child(4), td:nth-child(4) { width: 12%; }
+th:nth-child(5), td:nth-child(5) { width: 12%; }
+th:nth-child(6), td:nth-child(6) { width: 12%; }
+th:nth-child(7), td:nth-child(7) { width: 12%; }
+
+
+/* ---------------------------------------------------------
+   DETAIL-PAGE LAYOUT
+   Turns the page into a full-viewport flex column so that:
+
+     • header + .holding stay fixed at the top
+     • .holding-bottom takes the remaining height and becomes the only scrollable area
+   --------------------------------------------------------- */
+
+/* Root container – fills the viewport and disables page scroll */
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    margin: 0;
+    padding: 20px 16px 0;   /* top/side padding only; bottom is handled by the scroll area */
+    overflow: hidden;       /* prevent the body itself from scrolling */
+}
+
+/* Keep the page header and the summary block from shrinking */
+header,
+.holding {
+    flex-shrink: 0;
+}
+
+/* Holding bottom panel grows to fill remaining space and scrolls */
+.holding-bottom {
+    flex: 1;                /* take all leftover vertical space */
+    overflow-y: auto;       /* enable vertical scrolling */
+    min-height: 0;          /* required for a flex child to be allowed to shrink/scroll */
+    padding-bottom: 40px;   /* a little breathing room at the bottom */
+}
+
+
+/* ---------------------------------------------------------
+   STICKY TRANSACTIONS TABLE HEADER
+   The <thead> sticks to the top of the scrolling
+   .holding-transactions container (not the viewport).
+   --------------------------------------------------------- */
+.holding-transactions table thead tr:nth-child(1) th {
+    position: sticky;
+    top: 0;
+    background-color: var(--header-bg);
+    z-index: 15;
+    font-weight: bold;
+}
+
+
+/* =========================================================
+   DETAILED HOLDINGS — MOBILE
+   ========================================================= */   
+@media (max-width: 480px) {
+    /* -------------------------
+        Summary tables
+       ------------------------- */
+    .holding table {
+        font-size: 12px;
+        table-layout: auto;
+    }
+    .holding th,
+    .holding td {
+        padding: 3px 3px 3px 0;
+    }
+    .holding th {
+        font-size: 11px;
+    }
+    .holding th:nth-child(3),
+    .holding td:nth-child(3),
+    .holding th:nth-child(n+4),
+    .holding td:nth-child(n+4) {
+        white-space: nowrap;
+    }
+
+/* =========================================================
+    MOBILE — TRANSACTIONS
+
+    Transactions deliberately remain a conventional table. There are eight columns, so trying to
+    force these into a multi-row grid would make the data harder to read.
+
+    Instead:
+        • smaller text/padding
+        • no wrapping within cells
+        • minimum table width
+        • horizontal scrolling when necessary
+========================================================= */
+    .holding-transactions {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .holding-transactions table {
+        table-layout: auto;
+        min-width: 700px;
+        font-size: 12px;
+    }
+    .holding-transactions th,
+    .holding-transactions td {
+        padding: 3px 6px 3px 0;
+        white-space: nowrap;
+    }
+    .holding-transactions th {
+        font-size: 11px;
+    }
+
+    /* -------------------------
+        Holding Summary
+        Mobile: 4 metrics + 3 metrics
+        ------------------------- */
+    .holding-summary-scroll {
+        width: 100%;
+        overflow: hidden;
+    }
+
+    .holding-summary-scroll table {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        table-layout: auto;
+    }
+
+    .holding-summary-scroll thead,
+    .holding-summary-scroll tbody {
+        display: contents;
+    }
+
+    .holding-summary-scroll tr {
+        display: contents;
+    }
+
+    .holding-summary-scroll th,
+    .holding-summary-scroll td {
+        width: auto !important;
+        min-width: 0;
+        padding: 3px 3px 3px 0;
+        white-space: normal;
+        overflow-wrap: normal;
+    }
+
+    /* =========================================================
+   MOBILE PORTRAIT — SUMMARY
+
+   The summary contains seven metrics.
+
+   A normal HTML table cannot move its columns onto a
+   second row. On small screens we therefore use CSS Grid.
+
+   Visual arrangement:
+
+       1   2   3   4
+       5   6   7
+
+   Each metric consists of its heading (<th>) followed by its value (<td>).
+
+   The explicit grid positioning below is intentional:
+   it separates the headings from their values while preserving the existing HTML/data structure.
+   ========================================================= */       
+    /* First four metrics */
+    .holding-summary-scroll th:nth-child(1) {
+        grid-column: 1;
+        grid-row: 1;
+    }
+    .holding-summary-scroll td:nth-child(1) {
+        grid-column: 1;
+        grid-row: 2;
+    }
+    .holding-summary-scroll th:nth-child(2) {
+        grid-column: 2;
+        grid-row: 1;
+    }
+    .holding-summary-scroll td:nth-child(2) {
+        grid-column: 2;
+        grid-row: 2;
+    }
+    .holding-summary-scroll th:nth-child(3) {
+        grid-column: 3;
+        grid-row: 1;
+    }
+    .holding-summary-scroll td:nth-child(3) {
+        grid-column: 3;
+        grid-row: 2;
+    }
+    .holding-summary-scroll th:nth-child(4) {
+        grid-column: 4;
+        grid-row: 1;
+    }
+    .holding-summary-scroll td:nth-child(4) {
+        grid-column: 4;
+        grid-row: 2;
+    }
+
+    /* Remaining three metrics */
+    .holding-summary-scroll th:nth-child(5) {
+        grid-column: 1;
+        grid-row: 3;
+    }
+    .holding-summary-scroll td:nth-child(5) {
+        grid-column: 1;
+        grid-row: 4;
+    }
+    .holding-summary-scroll th:nth-child(6) {
+        grid-column: 2;
+        grid-row: 3;
+    }
+    .holding-summary-scroll td:nth-child(6) {
+        grid-column: 2;
+        grid-row: 4;
+    }
+    .holding-summary-scroll th:nth-child(7) {
+        grid-column: 3;
+        grid-row: 3;
+    }
+    .holding-summary-scroll td:nth-child(7) {
+        grid-column: 3;
+        grid-row: 4;
+    }
+    .holding-summary-scroll th {
+        font-size: 11px;
+    }
+    .holding-summary-scroll td {
+        font-size: 12px;
+    }
+}
+
+/* =========================================================
+   MOBILE LANDSCAPE
+
+   A phone in landscape is wider than 480px, so it leaves the portrait mobile media query.
+   However, its viewport is much shorter than a desktop screen.
+
+   The normal desktop layout uses:
+       height: 100vh;
+       overflow: hidden;
+
+   That would prevent the user from reaching lower summary sections and transactions.
+
+   Therefore landscape phones:
+     • allow the body to grow vertically
+     • allow normal vertical page scrolling
+     • disable the fixed-height transaction panel
+
+   This restores access to the complete page without changing the portrait layout.
+   ========================================================= */
+@media (max-width: 900px) and (orientation: landscape) {
+    body {
+        height: auto;
+        min-height: 100vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+    .holding-bottom {
+        flex: none;
+        overflow: visible;
+    }
+}

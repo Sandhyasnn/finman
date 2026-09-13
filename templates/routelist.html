@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base target="_blank">
+    <title>Financial Manager Debug  Endpoints</title>
+</head>
+<body>
+    <h1 style="text-align:center;">Financial Manager Debug  Endpoints</h1>
+    <p style="text-align:center;">Click any link to open the endpoint in a new tab.</p>
+
+    <h2>Main User Interfaces</h2>
+    <ul>
+        <li><a href="/" target="_blank">/ </a> → Server-Rendered Dashboard (Jinja2 template, this page)</li>
+        <li><a href="/status/" target="_blank">/status</a></li>
+        <li><a href="/reingest">/ingest</a> Re-Ingest Data and create transactions.json </li>
+        <li><a href="/refresh_prices">/refresh-prices</a> List all open securities with current prices</li>
+        <li><a href="/portfolio">/portfolio</a> Portfolio view for all owners | 
+            <a href="/portfolio?owner=MALT">/portfolio?owner=MALT</a> Portfolio view for owner MALT</li>
+        <li><a href="/broker">/broker</a> Broker view for all owners |
+            <a href="/broker?owner=MALT">/broker?owner=MALT</a> Broker view for owner MALT</li>
+        <li><a href="/holding/MALT/Stock/CBSL/HDFCBANK">/holding/MALT/Stock/CBSL/HDFCBANK</a>Holding Detailed view</li>
+    </ul>
+
+    <h2>Ingestion endpoints</h2>
+    {% set datasets = ['stockdata', 'mfdata', 'smallcasedata', 'msftdata'] %}
+    <ul>
+        <li> <a href="/debug/config">/debug/config</a> Just dump the config schema as JSON</li>
+        <li> Just dump the config as JSON <br>
+        {% for ds in datasets %}
+            <a href="/debug/excel/{{ ds }}">/debug/excel/{{ ds }} </a> ||
+        {% endfor %}</li>
+        <li>Dump the mapped transactions as JSON. At this stage we have only mapped the columns from the Excel sheet 
+            to the normalized transaction structure, but have not yet validated the data.<br>
+            {% for ds in datasets %}
+                <a href="/debug/transaction/{{ ds }}">/debug/transaction/{{ ds }}</a> ||
+            {% endfor %}</li>
+        <li>Dump the mapped transactions as JSON. Here we have mapped the columns from the Excel sheet to the normalized 
+            transaction structure, and have also validated the data using the Transaction model<br>
+            {% for ds in datasets %}
+                <a href="/debug/transaction2/{{ ds }}">/debug/transaction2/{{ ds }}</a> ||
+            {% endfor %}</li>
+        <li>Print the json files output files that were ingested.<br>
+           <a href="/debug/tranjson?rows=4">/debug/tranjson?rows=4</a> View 4 records in transactions.json ||
+           <a href="/debug/tranjson?rows=ALL">/debug/tranjsonrows=ALL</a> View ALL records in transactions.json <br>
+        {% for ds in datasets %}
+            <a href="/debug/tranjson/{{ ds }}?rows=4">/debug/tranjson/{{ds }}?rows=4</a> View 4 records in {{ ds }} ||
+            <a href="/debug/tranjson/{{ ds }}?rows=ALL">/debug/tranjson/{{ds }}rows=ALL</a> View ALL records in {{ ds }}  <br>
+        {% endfor %}</li>
+    </ul>
+    <h2>Price snapshot endpoints</h2>
+    <ul>
+        <li>List the unqiue values of a column/field in transactions.json <br>
+            {% for cols in ["security", "owner", "transaction_action", "position_closed", "asset_type", "asset_subtype", "broker"] %}
+                <a href="/debug/trancol/{{ cols }}">/debug/trancol/{{ cols }}</a> ||
+            {% endfor %}</li>
+        <li><a href="/debug/price-securities">/debug/price-securities</a> List all open securities in transactions.json</li>
+        <li><a href="/debug/pricesjson">/debug/pricesjson</a> Dump the price_snapshot.json file</li>
+        <li><a href="/debug/tranjson-by-closed">/debug/tranjson-by-closed</a> Examine  transactions.json for enrichment of the current prices and values</li>
+    </ul>
+ 
+    <h2>Tax Ingestion endpoints</h2>
+    {% set datasets = ['stockdata', 'mfdata', 'smallcasedata', 'msftdata'] %}
+    <ul>
+        <li>Dump the mapped transactions as JSON. At this stage we have only mapped the columns from the Excel sheet 
+            to the normalized transaction structure, but have not yet validated the data.<br>
+            {% for ds in datasets %}
+                <a href="/debug/tax/{{ ds }}">/debug/tax/{{ ds }}</a> ||
+            {% endfor %}</li>
+        <li>Dump the mapped transactions as JSON. Here we have mapped the columns from the Excel sheet to the normalized
+            transaction structure, and have also validated the data using the Transaction model<br>
+            {% for ds in datasets %}
+                <a href="/debug/tax2/{{ ds }}">/debug/tax2/{{ ds }}</a> ||
+            {% endfor %}</li>
+        <li><a href="/debug/ingest-tax">/debug/ingest-tax</a></li>
+        <li>Print the json files output files that were injected. Syntax /tranjson ... <br>
+           <a href="/debug/taxjson?rows=4">/debug/taxjson?rows=4</a> View 4 records in tax.json ||
+           <a href="/debug/taxjson?rows=ALL">/debug/taxjsonrows=ALL</a> View ALL records in tax.json <br>
+        {% for ds in datasets %}
+            <a href="/debug/taxjson/{{ ds }}?rows=4">/debug/taxjson/{{ds }}?rows=4</a> View 4 records in {{ ds }} ||
+            <a href="/debug/taxjson/{{ ds }}?rows=ALL">/debug/taxjson/{{ds }}rows=ALL</a> View ALL records in {{ ds }}  <br>
+        {% endfor %}</li>
+    </ul>
+
+    <h2>Holding endpoints</h2>
+    {% set asset_type = ["ETF","MF(Debt)","MF(Equity)","SMALLCASE","Stock","US STOCK"] %}
+    {% set owner = ["MALT","MALT(Z)","RSN","Sandhya","USHA"] %}
+    {% set broker = ["CBSL","FIDELITY","MF","ZERODHA"] %}
+
+    {# Define allowed owners for specific assets #}
+    {% set restricted_owners = {
+        "ETF": ["MALT", "MALT(Z)", "RSN"],
+        "MF(Debt)": ["MALT","RSN","Sandhya"],
+        "MF(Equity)": ["MALT","RSN","Sandhya"],
+        "US STOCK": ["RSN"],
+        "Stock": ["MALT", "MALT(Z)", "RSN"],
+        "SMALLCASE": ["MALT(Z)"],
+    } %}
+
+    {# Define allowed brokers per asset #}
+    {% set restricted_brokers = {
+        "ETF": ["CBSL", "ZERODHA"],
+        "MF(Debt)": ["MF"],
+        "MF(Equity)": ["MF"],
+        "US STOCK": ["FIDELITY"],
+        "Stock": ["CBSL", "ZERODHA"],
+        "SMALLCASE": ["ZERODHA"],
+    } %}
+
+    <ul>
+        <li>Get the holdings created for the owner-asset type combination<br>
+        {% for as in asset_type %}
+            {# Grab allowed owners / brokers for this asset, or fall back to the full lists #}
+            {% set valid_owners = restricted_owners.get(as, owner) %}
+            {% set valid_brokers = restricted_brokers.get(as, broker) %}
+            {% for ow in valid_owners %}
+                {% for bk in valid_brokers %}
+                    <a href="/debug/holdings/{{ ow }}/{{ as }}/{{ bk }}">/debug/holdings/{{ ow }}/{{ as }}/{{ bk }}</a> ||
+                {% endfor %}
+            {% endfor %}
+        {% endfor %}</li>
+
+        <li><a href="/debug/state/holdings">/debug/state/holdings</a> – Inspect the application-state result after build_current_holdings has run</li>
+
+        <li>Get the holdings SUMMARY created for the owner-asset type combination<br>
+        {% for as in asset_type %}
+            {% set valid_owners = restricted_owners.get(as, owner) %}
+            {% set valid_brokers = restricted_brokers.get(as, broker) %}
+            {% for ow in valid_owners %}
+                {% for bk in valid_brokers %}
+                    <a href="/debug/portfolio-summary/{{ ow }}/{{ as }}/{{ bk }}">/debug/portfolio-summary/{{ ow }}/{{ as }}/{{ bk }}</a> ||
+                {% endfor %}
+            {% endfor %}
+        {% endfor %}</li>
+        <li><a href="/debug/calcxirr">/debug/calcxirr</a> Calculate XIRR for a fixed data to validate the function </li>
+        <li>Get the holdings SUMMARY created for the owner-asset type combination<br>
+        {% for as in asset_type %}
+            {% set valid_owners = restricted_owners.get(as, owner) %}
+            {% set valid_brokers = restricted_brokers.get(as, broker) %}
+            {% for ow in valid_owners %}
+                {% for bk in valid_brokers %}
+                    <a href="/debug/holdings-all/{{ ow }}/{{ as }}/{{ bk }}">/debug/holdings-all/{{ ow }}/{{ as }}/{{ bk }}</a> ||
+                {% endfor %}
+            {% endfor %}
+        {% endfor %}</li>
+        <li><a href="/debug/portfolio-view/MALT">/debug/portfolio-view/MALT</a>Portfolio view for owner=MALT</li>
+        <li><a href="/debug/portfolio-view/ALL">/debug/portfolio-view/ALL</a>Portfolio view for owner=ALL</li>
+        <li><a href="/debug/broker-view/MALT">/debug/broker-view/MALT</a>Broker view for owner=MALT</li>
+        <li><a href="/debug/broker-view/ALL">/debug/broker-view/ALL</a>Broker view for owner=ALL</li>
+    </ul>
+
+    <h2>Tax View endpoints</h2>
+    <ul>
+        {% set view_types = ["portfolio","broker"] %}
+        {% set owners = ["MALT","MALT(Z)","RSN","Sandhya","USHA"] %}
+
+        <li>Get the JSON for portfolio and broker view overall
+            {% for vt in view_types %}
+                <a href="/debug/taxview?fy=2025-26&view={{ vt }}">/debug/taxview?fy=2025-26&view={{ vt }}</a> ||
+            {% endfor %}</li>
+        <li><a href="/debug/taxview?fy=2025-26&owner=MALATHI">/debug/taxview?fy=2025-26&owner=MALATHI</a> Try the multiple user selection option</li>
+        <li>Get the JSON for portfolio view with different owners
+            {% for ow in owners %}
+                <a href="/debug/taxview?fy=2025-26&owner={{ ow }}&view=portfolio">/debug/taxview?fy=2025-26&owner={{ ow }}&view=portfolio</a> ||
+            {% endfor %}</li>
+    </ul>
+
+    <p class="note">
+        <strong>Note:</strong> Replace <code>localhost:5003</code> with your actual server address if accessing remotely.<br>
+        Some endpoints (like /admin/reindex) may require authentication in future versions.
+    </p>
+
+    <footer>
+        FinMan • FastAPI Dashboard • Running on http://localhost:5000
+    </footer>
+</body>
+</html>

@@ -1,0 +1,134 @@
+{% extends "holding_detail.html" %}
+
+{% block title %}AI Insights - {{ detail.security }} - FinMan{% endblock %}
+
+{% block extra_css %}
+    {{ super() }}
+    <style>
+    /* Cards reuse surface + soft elevation already used elsewhere */
+    .ai-card {
+        background: var(--surface);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        padding: 16px 20px;
+        margin-bottom: 16px;
+    }
+
+    /* Provider heading */
+    .provider-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+    .provider-header h2 { margin: 0; }
+    .provider-header img {
+        height: 20px;
+        width: auto;
+        display: block;
+    }
+
+    /* AI response */
+    .ai-summary,
+    .answer {
+        line-height: 1.5;
+        white-space: pre-wrap;
+    }
+
+    /* Quick Insights */
+    /* Accordion – thin borders + existing bg/hover tokens */
+    details {
+        margin-bottom: 6px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    summary {
+        padding: 8px 12px;
+        background: var(--bg-alt);
+        cursor: pointer;
+        font-weight: 600;
+    }
+    summary:hover { background: var(--row-hover);}
+    .answer {
+        padding: 10px 12px;
+        border-top: 1px solid var(--border);
+    }
+
+    /* Error */
+    .error-box {
+        background: var(--bg-alt);
+        border-left: 4px solid var(--error);
+        padding: 10px 14px;
+        border-radius: 6px;
+        margin: 10px 0;
+        color: var(--error);
+    }
+
+    /* Empty insights */
+    .ai-subtle {
+        color: var(--muted);
+        font-size: var(--font-size-small);
+    }
+
+    .holding-bottom.ai-explain {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    </style>
+{% endblock %}
+
+{% block holding_bottom %}
+    <div class="holding-bottom ai-explain">
+        {% if ai_error %}
+            <div class="error-box">
+                <strong>Error:</strong> {{ ai_error }}
+            </div>
+        {% else %}
+            <div class="ai-providers">
+                {% for name, result in ai_providers.items() %}
+                    <div class="ai-provider-card">
+                        <!-- Overview -->
+                        <div class="ai-card">
+                            <div class="provider-header">
+                                <h2 class="provider-title">{{ name|upper }}  ({{ result.model }}) </h2>
+                                <div class="holding-ai"><img src="/static/{{ name }}-logo.png" alt="{{ name }} AI"></div>
+                            </div>
+                            <div class="ai-summary">{{ result.result.summary|safe }}</div>
+                        </div>
+
+                        <!-- Quick Insights -->
+                        <div class="ai-card">
+                            <h2>Quick Insights</h2>
+                            {% if result.result.insights and result.result.insights|length > 0 %}
+                                {% for item in result.result.insights %}
+                                    <details>
+                                        <summary>{{ item.q|default("Question") }}</summary>
+                                        <div class="answer">{{ item.a|default("")|safe }}</div>
+                                    </details>
+                                {% endfor %}
+                            {% else %}
+                                <p class="ai-subtle">
+                                    No additional insights available.
+                                </p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Sources -->
+                        {% if result.result.citations and result.result.citations|length > 0 %}
+                            <div class="ai-card">
+                                <h2>Sources</h2>
+                                <ul class="citations">
+                                    {% for c in result.result.citations %}
+                                        <li><a href="{{ c.url }}" target="_blank" rel="noopener noreferrer">{{ c.title }}</a></li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+{% endblock %}

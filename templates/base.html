@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinMan - {% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/themes.css">
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    {% block content %}{% endblock %}
+
+    <script>
+        // Apply saved theme on every page
+        (function () {
+        // Retrieve previously saved theme preference from local storage
+            const saved = localStorage.getItem("finman-theme");
+
+            if (saved) {
+                // Apply theme attribute to <html> element to trigger CSS rules (e.g., [data-theme="dark"])
+                document.documentElement.setAttribute("data-theme", saved);
+            }
+        })();
+    </script>    
+</body>
+</html>
+

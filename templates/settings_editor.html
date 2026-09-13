@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% macro render_value(value, path, label, parent=None) %}
+    {% if value is mapping %}
+        <div class="editor-group">
+            {% if path %}<h3>{{ label }}</h3>{% endif %}
+            {% for key, child in value.items() %}
+                {{ render_value(child, path + [key], key | replace('_', ' ') | title, value) }}
+            {% endfor %}
+        </div>
+
+    {% elif value is sequence and value is not string %}
+        {% if label == 'Default Providers' and parent is mapping and parent.providers is defined %}
+            <div class="editor-field">
+                <label>{{ label }}:</label>
+                <select multiple
+                        class="editor-multi-select"
+                        data-editor-path='{{ path | tojson }}'
+                        data-editor-kind="multi-list">
+                    {% for provider in parent.providers.keys() %}
+                        <option value="{{ provider }}"
+                                {% if provider in value %}selected{% endif %}>
+                            {{ provider }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        {% else %}
+            <div class="editor-field">
+                <label>{{ label }}:</label>
+                <input type="text"
+                       value="{{ value | join(', ') }}"
+                       data-editor-path='{{ path | tojson }}'
+                       data-editor-kind="list"
+                       data-editor-item-kind="{% if value | length %}{{ 'number' if value[0] is number and value[0] is not boolean else 'boolean' if value[0] is boolean else 'string' }}{% else %}string{% endif %}">
+            </div>
+        {% endif %}
+
+    {% elif value is boolean %}
+        <div class="editor-field">
+            <label>{{ label }}:</label>
+            <input type="checkbox"
+                   {% if value %}checked{% endif %}
+                   data-editor-path='{{ path | tojson }}'
+                   data-editor-kind="boolean">
+        </div>
+
+    {% elif value is number %}
+        <div class="editor-field">
+            <label>{{ label }}:</label>
+            <input type="number"
+                   value="{{ value }}"
+                   data-editor-path='{{ path | tojson }}'
+                   data-editor-kind="number">
+        </div>
+
+    {% elif label == 'Default Owner' and parent is mapping and parent.owners is defined %}
+        <div class="editor-field">
+            <label>{{ label }}:</label>
+            <select data-editor-path='{{ path | tojson }}'
+                    data-editor-kind="string">
+                {% for owner in parent.owners.keys() %}
+                    <option value="{{ owner }}"
+                            {% if value == owner %}selected{% endif %}>
+                        {{ owner }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+    {% elif label == 'Default Asset Type' and parent is mapping and parent.asset_types is defined %}
+        <div class="editor-field">
+            <label>{{ label }}:</label>
+            <select data-editor-path='{{ path | tojson }}'
+                    data-editor-kind="string">
+                {% for asset_type in parent.asset_types.keys() %}
+                    <option value="{{ asset_type }}"
+                            {% if value == asset_type %}selected{% endif %}>
+                        {{ asset_type }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+    {% else %}
+        <div class="editor-field">
+            <label>{{ label }}:</label>
+            <input type="text"
+                   value="{% if value is not none %}{{ value }}{% endif %}"
+                   data-editor-path='{{ path | tojson }}'
+                   data-editor-kind="{% if value is none %}null{% else %}string{% endif %}"
+                   {% if label | lower in ['api key', 'password', 'secret key'] %}
+                       autocomplete="new-password"
+                   {% endif %}>
+        </div>
+    {% endif %}
+{% endmacro %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="/static/settings.css">
+{% endblock %}
+
+{% block title %}Edit {{ section_title }}{% endblock %}
+
+{% block content %}
+
+<header class="settings-header">
+    <div>
+        <p class="eyebrow">FINMAN / SETTINGS</p>
+        <h1>Edit {{ section_title }}</h1>
+        <p class="settings-subtitle">{{ section_description }}</p>
+    </div>
+    <div><a href="/settings?return_url={{ return_url | urlencode }}">← Settings</a></div>
+</header>
+
+{% if section == 'ai' %}
+<section class="settings-message warning">
+    <strong>API keys are masked.</strong>
+    Leave <code>********</code> unchanged to keep the existing key.
+</section>
+{% endif %}
+
+<form id="settings-editor-form" method="post" action="/settings/edit/{{ section }}">
+    <input type="hidden" name="content" id="settings-content">
+    <input type="hidden" name="return_url" value="{{ return_url }}">
+
+    <section class="settings-section editor-section">
+        {{ render_value(section_data, [], section_title) }}
+    </section>
+
+    <div class="editor-actions">
+        <a class="settings-cancel-button" href="/settings?return_url={{ return_url | urlencode }}">Cancel</a>
+        <button type="submit">Save {{ section_title }}</button>
+    </div>
+</form>
+
+<script>
+(function () {
+    const form = document.getElementById("settings-editor-form");
+    const output = document.getElementById("settings-content");
+
+    function convert(value, kind) {
+        if (kind === "number") {
+            const number = Number(value);
+            if (Number.isNaN(number)) throw new Error("A numeric field contains an invalid value.");
+            return number;
+        }
+        if (kind === "null") return value === "" ? null : value;
+        return value;
+    }
+
+    function setValue(root, path, value) {
+        let current = root;
+        for (let i = 0; i < path.length - 1; i++) {
+            const key = path[i];
+            const nextKey = path[i + 1];
+            if (current[key] === undefined) {
+                current[key] = (Number.isInteger(Number(nextKey)) &&
+                    String(Number(nextKey)) === String(nextKey)) ? [] : {};
+            }
+            current = current[key];
+        }
+        current[path[path.length - 1]] = value;
+    }
+
+    form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        try {
+            const result = {};
+
+            document.querySelectorAll("[data-editor-path]").forEach(function (element) {
+                const path = JSON.parse(element.dataset.editorPath);
+                const kind = element.dataset.editorKind;
+                let value;
+
+                if (kind === "boolean") {
+                    value = element.checked;
+                } else if (kind === "list") {
+                    const itemKind = element.dataset.editorItemKind;
+                    value = element.value.split(",")
+                        .map(item => item.trim())
+                        .filter(item => item !== "")
+                        .map(item => convert(item, itemKind));
+                } else if (kind === "multi-list") {
+                    value = Array.from(element.selectedOptions)
+                        .map(option => option.value);
+                } else {
+                    value = convert(element.value, kind);
+                }
+
+                setValue(result, path, value);
+            });
+
+            output.value = JSON.stringify(result);
+            form.submit();
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+})();
+</script>
+
+{% endblock %}

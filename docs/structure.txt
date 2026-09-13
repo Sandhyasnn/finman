@@ -1,0 +1,74 @@
+Folder PATH listing for volume Local Disk
+Volume serial number is 000000D0 746C:87CD
+C:.
+�   config.dev.json
+�   config.json
+�   config.prod.json
+�   debug.py
+�   devstart.bat
+�   finman.py
+�   finman_actv.bat
+�   finman_del.bat
+�   finman_setup.bat
+�   logger.py
+�   requirements.txt
+�   structure.txt
+�   
++---cache
+�       price_snapshot.json
+�       tax.json
+�       tax_mfdata.json
+�       tax_msftdata.json
+�       tax_smallcasedata.json
+�       tax_stockdata.json
+�       transactions.json
+�       transactions_mfdata.json
+�       transactions_msftdata.json
+�       transactions_smallcasedata.json
+�       transactions_stockdata.json
+�       
++---docs
+�       config.md
+�       design.md
+�       
++---ingestion
+�   �   config.py
+�   �   excel_reader.py
+�   �   mapper.py
+�   �   models.py
+�   �   tax.py
+�   �   transactions.py
+�   �   
+�           config.cpython-313.pyc
+�           excel_reader.cpython-313.pyc
+�           mapper.cpython-313.pyc
+�           models.cpython-313.pyc
+�           tax.cpython-313.pyc
+�           transactions.cpython-313.pyc
+�           
++---logs
+�       finman.log
+�       
++---market
+�   �   amfi_provider.py
+�   �   external_links.py
+�   �   holdings.py
+�   �   prices.py
+�   �   provider_base.py
+�   �   yahoo_provider.py
+�   �   
+�           amfi_provider.cpython-313.pyc
+�           external_links.cpython-313.pyc
+�           holdings.cpython-313.pyc
+�           prices.cpython-313.pyc
+�           provider_base.cpython-313.pyc
+�           yahoo_provider.cpython-313.pyc
+�           
++---static
+�       mf_master.json
+�       styles.css
+�       
++---templates
+�       routelist.html
+�       status.html
+�       

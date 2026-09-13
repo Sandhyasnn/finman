@@ -1,0 +1,18 @@
+<!-- Define a standard blank row that can be used by the inheriting classes to 
+    insert blank rows  between sections or elsewhere-->
+{% macro blankrow(colspan=8) %}
+<tr class="blank-row">
+    <td colspan="{{ colspan }}"></td>
+</tr>
+{% endmacro %}
+
+{% macro blankrowt(colspan=8) %}
+<table>
+    <tbody>
+        <tr class="blank-row">
+            <td colspan="{{ colspan }}"></td>
+        </tr>
+    </tbody>
+</table>
+{% endmacro %}
+

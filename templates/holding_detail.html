@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% from "macros.html" import blankrowt %}
+
+{% block title %}{{ detail.security }} - FinMan{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="/static/detailedholding-styles.css">
+{% endblock %}
+
+
+{% block content %}
+<style>
+    .ai-link {
+        font-weight: 700;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+</style>
+
+<header>
+    <p class="eyebrow">FINMAN</p>
+    <h1>{{ detail.security }} - {{ detail.owner }} 
+        {% if request.app.state.config.ai.enabled %}
+            <a href="/ai/holding/{{ detail.owner }}/{{ detail.asset_type }}/{{ detail.broker }}/{{ detail.security }}?return_url={{ return_url | urlencode }}"
+               class="ai-link" title="AI analysis">✨AI</a>
+        {% endif %}
+    </h1>
+    {% if detail.current %}
+        {% set security_links = detail.current.links %}
+    {% elif detail.total %}
+        {% set security_links = detail.total.links %}
+    {% elif detail.closed %}
+        {% set security_links = detail.closed.links %}
+    {% else %}
+        {% set security_links = {} %}
+    {% endif %}
+
+    <a href="{{ return_url }}">← Home</a>
+</header>
+<p>
+    {{ detail.asset_type }}{% if detail.asset_subtype %} · {{ detail.asset_subtype }}{% endif %}
+    · {{ detail.broker }}
+    {% if security_links %}
+        <span class="security-links">
+        •
+        {% for link in security_links.values() %}
+            <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" title="{{ link.label }}">
+                <img src="{{ url_for('static', path=link.icon) }}" alt="{{ link.label }}" class="link-icon">
+            </a>
+        {% endfor %}
+        </span>
+    {% endif %}
+    &nbsp;&nbsp;
+    {% if price_snapshot and price_snapshot.updated_at %}
+        <span class="price-date">
+            (as of {{ price_snapshot.updated_at | date("datetime") }})
+        </span>
+    {% endif %}
+</p>
+
+
+
+<div class="holding holding-summary-scroll">
+    {% if detail.current %}
+    <section>
+        <h2>Current Price
+        </h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Avg Buy Price</th>
+                    <th>Quantity</th>
+                    <th>Current Cost</th>
+                    <th>Current Price</th>
+                    <th>Current Value</th>
+                    <th>Current Return</th>
+                    <th>Current Gain %</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{{ detail.current.avg_buy_price | currency }}</td>
+                    <td>{{ detail.current.quantity | decimal }}</td>
+                    <td>{{ detail.current.cost | currency }}</td>
+                    <td>{{ detail.current.current_price | currency }}</td>
+                    <td>{{ detail.current.current_value | currency }}</td>
+                    <td class ="{{ 'positive' if detail.current.gain_value is not none and detail.current.gain_value >= 0 else 'negative' }}">{{ detail.current.gain_value | currency }}</td>
+                    <td class ="{{ 'positive' if detail.current.gain_pct is not none and detail.current.gain_pct >= 0 else 'negative' }}">{{ detail.current.gain_pct | percent }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+
+    {% if detail.total %}
+    <section>
+        <h2>Total Price (incl. Sold)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Avg Buy Price</th>
+                    <th>Quantity</th>
+                    <th>Total Cost</th>
+                    <th>Current Price</th>
+                    <th>Current Value</th>
+                    <th>Total Return</th>
+                    <th>Total Gain %</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{{ detail.total.avg_buy_price | currency }}</td>
+                    <td>{{ detail.total.quantity | decimal }}</td>
+                    <td>{{ detail.total.cost | currency }}</td>
+                    <td>{{ detail.total.current_price | currency }}</td>
+                    <td>{{ detail.total.current_value | currency }}</td>
+                    <td class ="{{ 'positive' if detail.total.gain_value is not none and detail.total.gain_value >= 0 else 'negative' }}">{{ detail.total.gain_value | currency }}</td>
+                    <td class ="{{ 'positive' if detail.total.gain_pct is not none and detail.total.gain_pct >= 0 else 'negative' }}">{{ detail.total.gain_pct  | percent }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+
+    {% if detail.closed %}
+    <section>
+        <h2>Closed</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Avg Buy Price</th>
+                    <th>Quantity</th>
+                    <th>Total Cost</th>
+                    <th>Current Price</th>
+                    <th>Current Value</th>                
+                    <th>Closed Return</th>
+                    <th>Gain %</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{{ detail.closed.avg_buy_price | currency }}</td>
+                    <td>{{ detail.closed.quantity | decimal }}</td>
+                    <td>{{ detail.closed.cost | currency }}</td>
+                    <td>—</td>
+                    <td>{{ 0 | currency }}</td>
+                    <td class ="{{ 'positive' if detail.closed.gain_value is not none and detail.closed.gain_value >= 0 else 'negative' }}">{{ detail.closed.gain_value | currency }}</td>
+                    <td class ="{{ 'positive' if detail.closed.gain_pct is not none and detail.closed.gain_pct >= 0 else 'negative' }}">{{ detail.closed.gain_pct | percent }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+</div>
+
+{% block holding_bottom %}
+
+    <!-- blank spacer that uses the existing blank-row CSS -->
+    {{ blankrowt() }}
+
+<div class="holding-bottom holding-transactions">    
+<!-- List of all the transactions for hte chosen security -->
+<section>
+    <h2>
+        Transactions
+        <select id="transaction-scope">
+            <option value="current">Current</option>
+            <option value="total">Total</option>
+            <option value="closed">Closed</option>
+        </select>
+    </h2>
+
+    <div class="portfolio">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Action</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Cost</th>
+                    <th>Current Value</th>
+                    <th>Gain</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="transaction-rows">
+                {% for transaction in detail.transactions | sort(attribute="transaction_date", reverse=true) %}
+                <tr
+                    data-closed="{{ 'true' if transaction.position_closed else 'false' }}"
+                >
+                    <td>{{ transaction.transaction_date | date }}</td>
+                    <td>{{ transaction.transaction_action }}</td>
+                    <td>{{ transaction.transaction_quantity | decimal }}</td>
+                    <td>{{ transaction.transaction_price | currency }}</td>
+                    <td class ="{{ 'positive' if transaction.transaction_value is not none and transaction.transaction_value >= 0 else 'negative' }}">
+                        {{ transaction.transaction_value | currency}}</td>
+                    <td>
+                        <!-- If the position is CLOSED show 0 else the actual value -->
+                        {% if transaction.position_closed %}
+                            {{ 0 | currency }}
+                        {% else %}
+                            {{ transaction.current_value | currency }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if transaction.position_closed %}
+                            —
+                        {% elif transaction.current_value is not none and transaction.transaction_value is not none %}
+                            {% set gain = transaction.current_value + transaction.transaction_value %}
+                            <span class="{{ 'positive' if gain >= 0 else 'negative' }}">
+                                {{ gain | currency }}
+                            </span>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>{{ transaction.position_closed or "OPEN" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+</div>
+
+<script>
+    const scope = document.getElementById("transaction-scope");
+    const rows = document.querySelectorAll("#transaction-rows tr");
+
+    function filterTransactions() {
+        rows.forEach(row => {
+            const closed = row.dataset.closed === "true";
+
+            if (scope.value === "total") {
+                row.hidden = false;
+            } else if (scope.value === "closed") {
+                row.hidden = !closed;
+            } else {
+                row.hidden = closed;
+            }
+        });
+    }
+
+    scope.addEventListener("change", filterTransactions);
+    filterTransactions();
+</script>
+
+{% endblock %}
+
+{% endblock %}

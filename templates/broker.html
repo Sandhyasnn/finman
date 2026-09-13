@@ -1,0 +1,92 @@
+{% extends "baseview.html" %}
+{% from "macros.html" import blankrow %}
+
+{% block view_content %}
+{% if view.sections %}
+    <div class="portfolio">
+        <table>
+            <thead>
+                <!-- Title headers for the sections -->
+                <tr>
+                    <th>Stock/MF - Type/Links</th>
+                    <th>Avg Buy Price</th>
+                    <th>Quantity</th>
+                    <th>Current Cost</th>
+                    <th>Current Price</th>
+                    <th>Current Value</th>
+                    <th>Current Return</th>
+                    <th>Current Gain %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for section in view.sections %}
+                    <!-- Section Header Divider -->
+                    <tr class="section-header">
+                        <!-- Title summations for the sections -->
+                        <td colspan="3" class="section-title">
+                                <strong>{{ section.broker }}{% if section.owner %} - {{ section.owner }}{% endif %}</strong>
+                        </td>                    
+                        <td class="section-cost"><strong>{{ section.summary.cost | currency }}</strong></td>
+                        <td></td>
+                        <td class="section-value"><strong>{{ section.summary.net_value | currency }}</strong></td>
+                        <td class="section-gain"><strong class="{{ 'positive' if section.summary.gain_value >= 0 else 'negative' }}">
+                                {{ section.summary.gain_value | currency }}
+                            </strong>
+                        </td>
+                        <td class="section-return">
+                            <strong class="{{ 'positive' if section.summary.gain_pct is not none and section.summary.gain_pct >= 0 else 'negative' }}">
+                                {{ section.summary.gain_pct | percent }}
+                            </strong>
+                        </td>
+                    </tr>
+                    <!-- individual sections group per the logic -->
+                    {% for holding in section.holdings %}
+                        <tr>
+                            <td class="security-cell">
+                                <div class="security-name">
+                                    <a href="/holding/{{ holding.owner }}/{{ holding.asset_type }}/{{ holding.broker }}/{{ holding.security }}?return_url={{ (view_url ~ '?owner=' ~ view.owner) | urlencode }}">
+                                        {{ holding.security }}
+                                    </a>
+                                    <span class="info-icon" title="Asset type: {{ holding.asset_type }}{% if holding.asset_subtype %}&#10;Asset subtype: {{ holding.asset_subtype }}{% endif %}">ⓘ</span>                                
+                                </div>
+
+                                <div class="security-links">
+                                    •
+                                    {% for link in holding.links.values() %}
+                                        <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" title="{{ link.label }}">
+                                            <img src="{{ url_for('static', path=link.icon) }}" alt="{{ link.label }}" class="link-icon">
+                                        </a>
+                                    {% endfor %}
+
+                                    {% if request.app.state.config.ai.enabled %}
+                                        •
+                                        <a href="/ai/holding/{{ holding.owner }}/{{ holding.asset_type }}/{{ holding.broker }}/{{ holding.security }}?return_url={{ (view_url ~ '?owner=' ~ view.owner) | urlencode }}"
+                                        title="AI analysis">
+                                         ✨AI
+                                        </a>
+                                    {% endif %}                                
+                                </div>
+                            </td>
+                            <td>{{ holding.avg_buy_price | currency(decimal=2) }}</td>
+                            <td>{{ holding.quantity | decimal }}</td>
+                            <td>{{ holding.cost | currency }}</td>
+                            <td>{{ holding.current_price | currency(decimal=2) }}</td>
+                            <td>{{ holding.current_value | currency }}</td>
+                            <td class="{{ 'positive' if holding.gain_value is not none and holding.gain_value >= 0 else 'negative' }}">{{ holding.gain_value | currency }}</td>
+                            <td class="{{ 'positive' if holding.gain_pct is not none and holding.gain_pct >= 0 else 'negative' }}">{{ holding.gain_pct | percent }}</td>
+                        </tr>
+                    {% else %}
+                        <p class="empty">No holdings found.</p>
+                    {% endfor %}
+                        <!-- Adding a blank line after every section -->
+                         {{ blankrow() }}
+                {% else %}
+                    <p class="empty">No sections found.</p>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p class="empty">No holdings found.</p>
+{% endif %}
+{% endblock %}

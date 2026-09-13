@@ -1,0 +1,58 @@
+# ============================================================
+# FINMAN - PERSONAL / FINANCIAL DATA
+# ============================================================
+
+# Personal financial input files
+portfolioinputs/
+
+# Generated financial/cache data
+cache/
+
+# Application logs
+logs/
+
+# ============================================================
+# FINMAN - LOCAL CONFIGURATION / SECRETS
+# ============================================================
+
+config.json
+config.dev.json
+config.prod.json
+
+.env
+.env.*
+*.key
+*.pem
+
+
+# ============================================================
+# PYTHON
+# ============================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+
+# ============================================================
+# WINDOWS / IDE
+# ============================================================
+
+.vscode/
+.idea/
+
+*.pyproj
+*.pyo
+
+
+# ============================================================
+# TEMPORARY / BACKUP FILES
+# ============================================================
+
+*.bak
+*.tmp
+*~
+
+docs/FinMan_PROD_Deployment_Guide.txt
+docs/Install and Configure Samba.txt
+docs/finmgr - redesign.xlsx

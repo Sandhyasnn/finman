@@ -1,0 +1,112 @@
+{% extends "baseview.html" %}
+{% from "macros.html" import blankrow %}
+
+{% block title %}
+    Tax {{ view.fy }} Overview
+{% endblock %}
+
+{% block view_content %}
+<div style="margin-bottom: 1rem;">
+    <a href="/portfolio">← Portfolio</a>
+</div>
+
+{% if view.sections %}
+<div class="tax">
+    <table>
+        <thead>
+            <tr>
+                <th>Security</th>
+                <th>Gain Type</th>
+                <th>Buy Value</th>
+                <th>Sell Value</th>
+                <th>Capital Gain</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% for section in view.sections %}
+            <!-- Section header / total -->
+            <tr>
+                <td colspan="2">
+                    <strong>
+                        {{ section.broker }}
+                        {% if section.owner %}
+                            - {{ section.owner }}
+                        {% endif %}
+                    </strong>
+                </td>
+
+                <td colspan="3"></td>
+            </tr>
+
+            <!-- Tax transactions -->
+            {% for transaction in section.transactions %}
+            <tr>
+                <td>
+                    <a href="/tax/holding/{{ view.fy }}/{{ transaction.owner }}/{{ transaction.asset_type }}/{{ transaction.broker }}/{{ transaction.security }}?return_url={{ (request.url.path ~ '?owner=' ~ view.owner ~ '&fy=' ~ view.fy) | urlencode }}">
+                        {{ transaction.security }}
+                    </a>
+                </td>
+                <td>{{ transaction.gain_type }}</td>
+                <td>{{ transaction.buy_value | currency }}</td>
+                <td>{{ transaction.sell_value | currency }}</td>
+                <td class="{{ 'positive' if transaction.capital_gain >= 0 else 'negative' }}">
+                    {{ transaction.capital_gain | currency }}
+                </td>
+            </tr>
+            {% endfor %}
+
+            <!-- Section total -->
+            {% for summary in section.summary %}
+            <tr>
+                <td><strong>Total</strong></td>
+                <td><strong>{{ summary.gain_type }}</strong></td>
+                <td><strong>{{ summary.buy_value | currency }}</strong></td>
+                <td><strong>{{ summary.sell_value | currency }}</strong></td>
+                <td class="{{ 'positive' if summary.capital_gain >= 0 else 'negative' }}">
+                    <strong>{{ summary.capital_gain | currency }}</strong>
+                </td>
+            </tr>
+            {% endfor %}
+                <!-- Adding a blank limne after every section -->
+                    {{ blankrow(colspan=5) }}
+        {% endfor %}
+
+        </tbody>
+    </table>
+    {% else %}
+        <p class="empty">No tax records found.</p>
+    {% endif %}
+
+    {% if view.summary %}
+    <section class="tax-summary">
+        <h2>Overall Summary</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Gain Type</th>
+                    <th>Buy Value</th>
+                    <th>Sell Value</th>
+                    <th>Capital Gain</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for summary in view.summary %}
+                <tr>
+                    <td>{{ summary.gain_type }}</td>
+                    <td>{{ summary.buy_value | currency }}</td>
+                    <td>{{ summary.sell_value | currency }}</td>
+                    <td class="{{ 'positive' if summary.capital_gain >= 0 else 'negative' }}">
+                        {{ summary.capital_gain | currency }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+</div>
+
+{% endblock %}

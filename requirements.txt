@@ -1,0 +1,58 @@
+# ============================================================
+# FinMan - Python Dependencies
+# ============================================================
+#
+# Direct dependencies used by FinMan.
+# Versions are pinned to the working FinMan DEV environment.
+#
+# Transitive dependencies are intentionally not listed here.
+# pip will install those automatically.
+# ============================================================
+
+# ------------------------------------------------------------
+# Web application
+# ------------------------------------------------------------
+# FastAPI web framework used by FinMan for the application and API/debug routes.
+fastapi==0.141.1
+
+# ASGI server used to run the FastAPI application.
+uvicorn==0.52.4
+
+Jinja2==3.1.6
+
+# ------------------------------------------------------------
+# Configuration and data validation
+# ------------------------------------------------------------
+# Pydantic v2 is used for strongly typed configuration models
+# and normalized FinMan data models.
+pydantic==2.13.4
+
+python-dotenv==1.2.3
+
+# ------------------------------------------------------------
+# Data processing
+# ------------------------------------------------------------
+numpy==2.5.2
+pandas==3.0.5
+
+
+# ------------------------------------------------------------
+# Excel input
+# ------------------------------------------------------------
+# openpyxl is used to read the FinMan Excel source workbooks, including .xlsm files.
+openpyxl==3.1.5
+
+# ------------------------------------------------------------
+# Market data
+# ------------------------------------------------------------
+yfinance==1.6.0
+
+
+# ------------------------------------------------------------
+# AI providers
+# ------------------------------------------------------------
+openai==3.6.0
+google-genai==2.21.0
+#cerebras_cloud_sdk==1.91.0
+#mistralai==2.9.4
+

@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <style>
+        body {
+            max-width: 900px;   /* Overriding this for a tigher view on the status */
+        }
+        .status-box {
+            padding: 10px 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            line-height: 1.45;
+            border-left: 4px solid transparent;
+        }
+
+        .status-box.success {
+            background: #f0faf4;
+            border-left-color: var(--success);
+        }
+
+        .status-box.warning {
+            background: #fff8f0;
+            border-left-color: var(--warning);
+        }
+
+        .status-box.error {
+            background: #fdf2f2;
+            border-left-color: var(--error);
+        }
+    </style>
+
+    <header>
+        <div>
+            <p class="eyebrow">FINMAN</p>
+            <h1>System Status</h1>
+        </div>
+        <a href="{{ return_url }}">← Home</a>
+    </header>
+
+    <section class="summary">
+        {% if status.status == "ok" %}
+            <span class="status-box success">Ingestion successful</span>
+        {% elif status.status == "partial" %}
+            <span class="status-box warning">Ingestion completed with retained data</span>
+        {% else %}
+            <span class="status-box error">Ingestion failed</span>
+        {% endif %}
+        <div class="total">
+            <strong>{{ status.total_transactions }}</strong>
+            <span>transactions</span>
+        </div>
+    </section>
+
+    <section>
+        <h2>Transaction Ingestion</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Rows Read</th>
+                        <th>Rows Filtered</th>
+                        <th>Transactions</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dataset in status.datasets %}
+                    <tr>
+                        <td>{{ dataset.dataset }}</td>
+                        <td>{{ dataset.rows_read if dataset.rows_read is not none else "—" }}</td>
+                        <td>{{ dataset.rows_filtered if dataset.rows_filtered is not none else "—" }}</td>
+                        <td>
+                            {% if dataset.status == "retained" %}
+                                <strong>{{ dataset.transactions_retained }}</strong>
+                            {% else %}
+                                <strong>{{ dataset.transactions_validated }}</strong>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if dataset.status == "ok" %}
+                                Fresh
+                            {% elif dataset.status == "retained" %}
+                                Retained ({{ dataset.transactions_retained }})
+                            {% else %}
+                                Failed
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% for dataset in status.datasets %}
+        {% if dataset.status == "retained" %}
+            <div class="status-box warning">
+                <strong style="font-weight: 300;">{{ dataset.dataset }}</strong> —
+                {{ dataset.transactions_retained }} previous transactions retained.
+                <span>{{ dataset.message }}</span>
+            </div>
+        {% elif dataset.status == "failed" %}
+            <div class="status-box error">
+                <strong>{{ dataset.dataset }}</strong> —
+                Ingestion failed.
+                <span>{{ dataset.message }}</span>
+            </div>
+        {% endif %}
+    {% endfor %}
+    <footer>Output: {{ status.output_file }}</footer><br>
+
+    <section>
+    {% if tax_status %}
+        <h2>Tax Ingestion</h2>
+
+        <div class="summary">
+            <div class="total">
+                <strong>{{ tax_status.total_tax_records }}</strong>
+                <span>tax records</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Rows Read</th>
+                        <th>Tax Records</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for dataset in tax_status.datasets %}
+                    <tr>
+                        <td>{{ dataset.dataset }}</td>
+
+                        <td>
+                            {{ dataset.rows_read
+                               if dataset.rows_read is not none
+                               else "—" }}
+                        </td>
+
+                        <td>
+                            {% if dataset.status == "retained" %}
+                                <strong>{{ dataset.tax_retained }}</strong>
+                            {% else %}
+                                <strong>{{ dataset.tax_validated }}</strong>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if dataset.status == "ok" %}
+                                Fresh
+                            {% elif dataset.status == "retained" %}
+                                Retained ({{ dataset.tax_retained }})
+                            {% else %}
+                                Failed
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    {% for dataset in tax_status.datasets %}
+        {% if dataset.status == "retained" %}
+            <div class="status-box warning">
+                <strong style="font-weight: 300;">
+                    {{ dataset.dataset }}
+                </strong> —
+                {{ dataset.tax_retained }}
+                previous tax records retained.
+                <span>{{ dataset.message }}</span>
+            </div>
+
+        {% elif dataset.status == "failed" %}
+            <div class="status-box error">
+                <strong>{{ dataset.dataset }}</strong> —
+                Tax ingestion failed.
+                <span>{{ dataset.message }}</span>
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    <footer>Output: {{ tax_status.output_file }}</footer>
+    <br>
+
+    {% else %}
+            <h2>Tax Ingestion</h2>
+            <div class="status-box warning">
+                Tax ingestion has not run.
+            </div>        
+    {% endif %}
+    </section>
+
+    <section>
+        <h2>Market Prices</h2>
+
+        {% if price_status %}
+            <div class="summary">
+                <div class="total">
+                    <strong>{{ price_status.stocks.updated }}</strong>
+                    <span>of {{ price_status.stocks.requested }} stocks updated</span>
+                </div>
+                <div class="total">
+                    <strong>{{ price_status.mutual_funds.updated }}</strong>
+                    <span>of {{ price_status.mutual_funds.requested }} mutual funds updated</span>
+                </div>
+                <div class="total">
+                    <strong>{{ price_status.transaction_enrichment.transactions_enriched }}</strong>
+                    <span>transactions enriched</span>
+                </div>                
+            </div>
+
+            <p>
+                Last refresh: <strong>{{ price_status.updated_at }}</strong>
+            </p>
+
+            {% if price_status.exchange_rates.required %}
+                {% if price_status.exchange_rates.status == "current" %}
+                    <div class="status-box success">
+                        <strong>USD/INR:</strong>
+                        {{ "%.2f"|format(price_status.exchange_rates.USDINR) }}
+                        — Current
+                    </div>
+                {% elif price_status.exchange_rates.status == "stale" %}
+                    <div class="status-box warning">
+                        <strong>USD/INR:</strong>
+                        {{ "%.2f"|format(price_status.exchange_rates.USDINR) }}
+                        — Stale (previous rate)
+                    </div>
+                {% else %}
+                    <div class="status-box error">
+                        <strong>USD/INR:</strong>
+                        Unavailable
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            {% if price_status.stocks.missing or price_status.mutual_funds.missing %}
+                <div class="status-box error">
+                    <strong>Missing prices</strong>
+                    {% if price_status.stocks.missing %}
+                        <div>Stocks: {{ price_status.stocks.missing | join(", ") }}</div>
+                    {% endif %}
+                    {% if price_status.mutual_funds.missing %}
+                        <div>Mutual Funds: {{ price_status.mutual_funds.missing | join(", ") }}</div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="status-box success">Missing prices: none</div>
+            {% endif %}
+
+            {% if price_status.stocks.stale or price_status.mutual_funds.stale %}
+                <div class="status-box warning">
+                    <strong>Stale prices</strong>
+                    {% if price_status.stocks.stale %}
+                        <div>Stocks: {{ price_status.stocks.stale | join(", ") }}</div>
+                    {% endif %}
+                    {% if price_status.mutual_funds.stale %}
+                        <div>Mutual Funds: {{ price_status.mutual_funds.stale | join(", ") }}</div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="status-box success">Stale prices: none</div>
+            {% endif %}
+
+        {% else %}
+            <div class="status-box warning">
+                Price refresh has not run.
+            </div>
+        {% endif %}
+    </section>
+    <footer>Output: {{ price_status.output_file }}</footer><br>
+
+    <section>
+        <h2>AI Providers</h2>
+        {% if not ai_status or not ai_status.enabled %}
+            <div class="status-box warning">AI services are disabled.</div>
+        {% else %}
+            <div class="summary">
+                <div class="total">
+                    {% if ai_status.status == "OK" %}
+                        <strong>OK</strong>
+                    {% elif ai_status.status == "DEGRADED" %}
+                        <strong>Degraded</strong>
+                    {% else %}
+                        <strong>Down</strong>
+                    {% endif %}
+                    <span>AI service status</span>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Provider</th>
+                            <th>Status</th>
+                            <th>Latency</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, provider in ai_status.providers.items() %}
+                        <tr>
+                            <td>{{ name|capitalize }}</td>
+                            <td>
+                                {% if provider.status == "UP" %}
+                                    <span class="status-box success">Up</span>
+                                {% else %}
+                                    <span class="status-box error">Down</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if provider.latency_ms is not none %}
+                                    {{ provider.latency_ms }} ms
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if provider.error %}
+                                    {{ provider.error }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </section>
+
+    <!-- More sections (e.g. reconciliation, alerts) can be appended below as <section> blocks -->
+    <footer>TBD</footer>
+{% endblock %}

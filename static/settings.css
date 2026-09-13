@@ -1,0 +1,687 @@
+/* ============================================================
+   SETTINGS OVERVIEW
+
+   This section controls the main /settings page.
+   The page is roughly structured as:
+       FINMAN / Settings                         ← header
+       Effective configuration
+
+       Environment       Override file       Status
+       ┌────────────┐    ┌────────────┐      ┌────────────┐
+       │ dev        │    │ config...  │      │ Restart... │
+       └────────────┘    └────────────┘      └────────────┘
+
+       Editable Settings
+       ┌────────────────┐ ┌────────────────┐ ┌────────────────┐
+       │ Frontend       │ │ AI             │ │ External Links │
+       │ ...            │ │ ...            │ │ ...            │
+       │ [Edit]         │ │ [Edit]         │ │ [Edit]         │
+       └────────────────┘ └────────────────┘ └────────────────┘
+
+       Effective Configuration
+       { ...complete JSON... }
+
+   The CSS here is only concerned with the appearance/layout
+   of this overview page. The actual settings and their values
+   come from the Jinja template.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   PAGE HEADER
+
+   The header contains two sides:
+       Left:
+           FINMAN / SETTINGS
+           Settings
+           Effective configuration
+
+       Right:
+           ← Back
+
+   display: flex
+       Places the two sides next to each other.
+
+   justify-content: space-between
+       Pushes the left and right sides to opposite ends.
+
+   align-items: flex-start
+       Aligns them at their top edges rather than vertically centering them.
+
+   gap
+       Provides spacing if the two sides get close together.
+
+   margin-bottom
+       Separates the header from the information below it.
+   ------------------------------------------------------------ */
+.settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+/* ------------------------------------------------------------
+   Main Settings heading
+
+   Browsers give <h1> a default top/bottom margin.
+
+   margin: 0 removes that default spacing because the header
+   layout already controls the spacing.
+   ------------------------------------------------------------ */
+.settings-header h1 {
+    margin: 0;
+}
+
+/* ------------------------------------------------------------
+   Smaller text immediately below the main heading.
+
+   Example:
+       Settings
+       Effective configuration
+
+   margin:
+       4px top gives a small gap below the heading.
+
+   opacity:
+       Makes this supporting text less prominent than the main heading.
+   ------------------------------------------------------------ */
+.settings-subtitle {
+    margin: 4px 0 0;
+    color: var(--muted);
+}
+
+/* ============================================================
+   ENVIRONMENT / OVERRIDE FILE / STATUS INFORMATION
+   ============================================================ */
+/* ------------------------------------------------------------
+   The three information boxes are displayed in one row:
+       Environment | Override file | Status
+
+   display: grid
+       Creates a grid layout.
+
+   repeat(3, ...)
+       Creates exactly three equal columns.
+
+   minmax(0, 1fr)
+       Each column is allowed to shrink to zero if necessary, while normally taking an equal share of the available width.
+
+   gap
+       Creates spacing between the three boxes.
+
+   margin-bottom
+       Separates this information row from the next section.
+   ------------------------------------------------------------ */
+.settings-info {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 4    px;
+}
+
+
+/* ------------------------------------------------------------
+   Each individual information box.
+
+   .settings-info > div means:
+       Select only <div> elements that are DIRECT children of .settings-info.
+
+   This prevents the rule from accidentally affecting deeper elements inside the box.
+
+   padding
+       Creates space between the box border and its contents.
+
+   border
+       Gives each box a light outline.
+
+   var(--border)
+       First use the application's CSS variable
+       --border-color.
+
+       If that variable does not exist, use #ddd instead.
+
+   border-radius
+       Slightly rounds the corners.
+   ------------------------------------------------------------ */
+.settings-info > div {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+
+/* ------------------------------------------------------------
+   The information box contains elements such as:
+
+       <strong>Environment</strong>
+       <span>dev</span>
+
+   display: block
+       Forces each onto its own line.
+
+   Without this, they would normally appear inline.
+   ------------------------------------------------------------ */
+.settings-info strong,
+.settings-info span {
+    display: block;
+}
+
+
+/* ------------------------------------------------------------
+   The actual value gets a small gap below the label.
+
+   Example:
+       Environment
+       dev
+
+   The opacity also makes the value slightly less prominent than the label.
+   ------------------------------------------------------------ */
+.settings-info span {
+    margin-top: 4px;
+    color: var(--muted);
+}
+
+/* ============================================================
+   SUCCESS / ERROR / WARNING MESSAGES
+   ============================================================ */
+/* ------------------------------------------------------------
+   Common styling for messages shown after an operation.
+
+   Examples:
+
+       Saved frontend successfully.
+       Could not save settings: ...
+       API keys are masked...
+
+   padding
+       Space inside the message.
+
+   margin-bottom
+       Space below the message.
+
+   border / border-radius
+       Gives the message a subtle container.
+   ------------------------------------------------------------ */
+.settings-message {
+    padding: 12px 14px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+/* ------------------------------------------------------------
+   The three message types use a colored LEFT border.
+
+   Only the left border is strongly colored; the rest remains neutral so the message does not become visually heavy.
+
+       success → green
+       error   → red
+       warning → orange
+   ------------------------------------------------------------ */
+/* .settings-message.success {
+    border-left: 4px solid #388e3c;
+}
+
+.settings-message.error {
+    border-left: 4px solid #d32f2f;
+}
+
+.settings-message.warning {
+    border-left: 4px solid #f57c00;
+} */
+
+
+/* ============================================================
+   GENERAL SETTINGS SECTION
+   ============================================================ */
+/* ------------------------------------------------------------
+   A settings section is the main bordered container used for
+   larger blocks of the Settings page.
+
+   For example:
+       Editable Settings
+       Effective Configuration
+
+   margin-bottom
+       Separates this section from the next section.
+
+   padding
+       Creates space between the section border and its
+       contents.
+
+   border / border-radius
+       Creates the light card-like appearance.
+   ------------------------------------------------------------ */
+.settings-section {
+    margin-bottom: 8px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+/* ------------------------------------------------------------
+   Section heading
+
+   Some sections have a heading area containing:
+       <h2>Frontend</h2>
+       <p>Owner and asset-type selections...</p>
+
+   display: flex
+       Allows heading content and any future right-side
+       content (such as a button) to sit on the same row.
+
+   justify-content: space-between
+       Pushes left and right content apart.
+
+   gap
+       Keeps them separated if they are close.
+
+   margin-bottom
+       Separates the heading from the section contents.
+   ------------------------------------------------------------ */
+.section-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 16px;
+}
+
+
+/* ------------------------------------------------------------
+   Section <h2> heading.
+
+   Browsers give headings default margins.
+
+   We remove the top margin and keep only a small 4px gap
+   below the heading.
+   ------------------------------------------------------------ */
+.section-heading h2 {
+    margin: 0 0 4px;
+}
+
+/* ------------------------------------------------------------
+   Supporting description below a section heading.
+
+   margin: 0
+       Removes the browser's default paragraph margins.
+
+   opacity
+       Makes descriptive text less prominent than the heading.
+   ------------------------------------------------------------ */
+.section-heading p {
+    margin: 0;
+    color: var(--muted);
+}
+
+/* ============================================================
+   EDITABLE SETTINGS CARDS
+   ============================================================ */
+/* ------------------------------------------------------------
+   The editable sections are displayed as three cards:
+
+       Frontend       AI       External Links
+
+   display: grid
+       Creates the card layout.
+
+   repeat(3, ...)
+       Creates three equal-width columns.
+
+   gap
+       Creates space between the cards.
+   ------------------------------------------------------------ */
+.settings-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+/* ------------------------------------------------------------
+   Individual editable settings card.
+
+   Example:
+
+       Frontend
+       Owner and asset-type selections...
+       
+       [Edit]
+
+   display: flex
+       Allows the contents to be arranged vertically.
+
+   flex-direction: column
+       Places the card contents from top to bottom.
+
+   justify-content: space-between
+       Pushes the top content and button apart so that the button stays toward the bottom of the card.
+
+   gap
+       Adds space between the card's internal elements.
+
+   padding
+       Creates space inside the card.
+
+   border / border-radius
+       Gives the card its outline and rounded corners.
+   ------------------------------------------------------------ */
+.settings-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+/* ------------------------------------------------------------
+   Card heading.
+
+   Remove the browser's default heading margin and leave only
+   a small gap underneath it.
+   ------------------------------------------------------------ */
+.settings-card h3 {
+    margin: 0 0 6px;
+}
+
+/* ------------------------------------------------------------
+   Card description.
+
+   Remove default paragraph margins and make the description
+   slightly less prominent than the heading.
+   ------------------------------------------------------------ */
+.settings-card p {
+    margin: 0;
+    color: var(--muted);
+}
+
+/* ============================================================
+   BUTTONS / LINKS USED BY SETTINGS
+   ============================================================ */
+/* ------------------------------------------------------------
+   These three selectors share the same basic button shape:
+
+       .settings-edit-button
+           Edit button on the Settings overview.
+
+       .settings-cancel-button
+           Cancel link on the editor screen.
+
+       .editor-actions button
+           Save button on the editor screen.
+
+   display: inline-block
+       Allows the links/buttons to behave like compact boxes.
+
+   padding
+       Controls the amount of space inside the button.
+
+   border-radius
+       Slightly rounds the corners.
+
+   text-decoration: none
+       Removes the normal underline from the Edit/Cancel links.
+   ------------------------------------------------------------ */
+.settings-edit-button,
+.settings-cancel-button,
+.editor-actions button {
+    display: inline-block;
+    padding: 8px 14px;
+    border-radius: 6px;
+    text-decoration: none;
+}
+
+/* ------------------------------------------------------------
+   Edit button specifically.
+
+   align-self: flex-start
+       Because .settings-card is a flex column, this prevents
+       the Edit button from stretching across the full width
+       of the card.
+
+   border
+       Gives the Edit link a visible button-like outline.
+   ------------------------------------------------------------ */
+.settings-edit-button {
+    align-self: flex-start;
+    border: 1px solid var(--border  );
+}
+
+
+/* ============================================================
+   EFFECTIVE CONFIGURATION
+   ============================================================ */
+/* ------------------------------------------------------------
+   The effective configuration is displayed inside a <pre>.
+
+   Example:
+
+       {
+           "frontend": {
+               ...
+           },
+           "ai": {
+               ...
+           }
+       }
+
+   margin: 0
+       Removes the browser's default <pre> margin.
+
+   overflow: auto
+       If the JSON is wider or taller than the available area,
+       allow the browser to provide scrollbars rather than
+       expanding the entire page.
+
+   max-height
+       Limits the JSON viewer to 600px high.
+
+   font-size
+       Uses smaller text because this is a diagnostic/config
+       display rather than the main content.
+
+   line-height
+       Controls vertical spacing between JSON lines.
+   ------------------------------------------------------------ */
+.effective-config {
+    margin: 0;
+    overflow: auto;
+    max-height: 600px;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+
+/* ============================================================
+   CONFIGURATION EDITOR
+   The editor is intentionally compact.
+   Each setting is displayed as:
+       Label:    [ edit box ]
+   Rather than putting every field inside a separate card,
+   border or large grid. This keeps a configuration with
+   10-15 settings to roughly one screen.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   Outer container for the editor fields
+   
+   The surrounding .settings-section already provides the main border/padding for the page.
+
+   We therefore use only a very small amount of additional padding here.
+   ------------------------------------------------------------ */
+.editor-section {
+    padding: 4px 6px;
+}
+
+/* ------------------------------------------------------------
+   A group represents a nested dictionary/object.
+
+   For example:
+       providers
+           gemini
+               type
+               model
+               api_key
+           groq
+               type
+               model
+
+   margin-bottom creates a small gap before the next group.
+   ------------------------------------------------------------ */
+.editor-group {
+    margin-bottom: 14px;
+}
+
+/* ------------------------------------------------------------
+   Do not add extra space after the last group.
+
+   :last-child means:
+       "select this element only if it is the last child
+        of its parent."
+   ------------------------------------------------------------ */
+.editor-group:last-child {
+    margin-bottom: 0;
+}
+
+
+/* ------------------------------------------------------------
+   Group heading
+
+   Used for nested objects such as:
+       Providers
+       Gemini
+       Groq
+
+   We deliberately keep the heading small because the purpose of this screen is editing values, 
+   not presenting large section headings.
+   ------------------------------------------------------------ */
+.editor-group > h3 {
+    margin: 14px 0 6px;
+    font-size: 14px;
+}
+
+/* ------------------------------------------------------------
+   Individual setting row
+
+   Every primitive configuration value becomes one row:
+       Label:    [ value ]
+
+   display: flex
+       Places the label and input beside each other.
+
+   align-items: center
+       Vertically centers the label and input.
+
+   gap: 8px
+       Creates a small space between the label and input.
+
+   min-height: 32px
+       Gives each row enough height to remain readable.
+
+   margin: 2px 0
+       Keeps vertical spacing between rows very small.
+   ------------------------------------------------------------ */
+.editor-field {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+    margin: 2px 0;
+}
+
+/* ------------------------------------------------------------
+   Label column
+
+   All labels get the same width so that the input boxes
+   line up vertically:
+       Enabled:           [ ... ]
+       Timeout Seconds:   [ ... ]
+       Max Tokens:        [ ... ]
+
+   width: 180px
+       Reserves 180px for the label.
+
+   flex-shrink: 0
+       Prevents the label column from becoming narrower when the browser window gets smaller.
+   ------------------------------------------------------------ */
+.editor-field label {
+    width: 160px;
+    flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------
+   Text and number input boxes
+
+   Both normal text fields and numeric fields use the same appearance.
+
+   width: 420px
+       Keeps the edit box reasonably compact.
+
+   max-width: 100%
+       Prevents the box from overflowing its container on a narrow screen.
+
+   box-sizing: border-box
+       Makes the declared width include padding and border.
+
+   padding: 5px 7px
+       Small internal spacing so the fields remain compact.
+   ------------------------------------------------------------ */
+.editor-field input[type="text"],
+.editor-field input[type="number"] {
+    width: 360px;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 2px 4px;
+}
+
+/* ------------------------------------------------------------
+   Boolean values
+
+   A boolean is represented by a checkbox rather than a text field.
+   Example:
+       Enabled:   [✓]
+
+   Explicit width/height keeps the checkbox visually consistent with the compact editor.
+   ------------------------------------------------------------ */
+.editor-field input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+
+/* ------------------------------------------------------------
+   Save / Cancel buttons
+
+   Put the buttons on one row and align them to the right:
+                         [Cancel] [Save]
+
+   display: flex
+       Places the buttons beside each other.
+
+   justify-content: flex-end
+       Pushes them to the right.
+
+   gap: 8px
+       Provides a small gap between the buttons.
+
+   margin-top: 12px
+       Separates the buttons slightly from the final setting.
+   ------------------------------------------------------------ */
+.editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* ------------------------------------------------------------
+   Cancel button
+
+   Give Cancel a simple outline so that Save remains the visually stronger action.
+
+   The actual button styling comes from the existing common settings/button CSS.
+   ------------------------------------------------------------ */
+.settings-cancel-button {
+    border: 1px solid var(--border);
+}

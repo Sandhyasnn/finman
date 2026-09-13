@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "macros.html" import blankrowt %}
+
+{% block title %}{{ security }} - Tax {{ fy }}{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="/static/detailedholding-styles.css">
+{% endblock %}
+
+
+{% block content %}
+
+<header>
+    <p class="eyebrow">FINMAN</p>
+    <h1>Tax Holding - {{ security }} - {{ owner }}</h1>
+    <p>{{ asset_type }} | {{ broker }}</p>
+    <p>FY {{ fy }}</p>
+    <a href="{{ return_url }}">← Home</a>
+</header>
+
+{% set long_term = records | selectattr("gain_type", "equalto", "Long Term") | list %}
+{% set short_term = records | selectattr("gain_type", "equalto", "Short Term") | list %}
+
+<h2>Tax Summary</h2>
+<div class="holding">
+    <table>
+        <thead>
+            <tr>
+                <th>Broker</th>
+                <th>Asset Type</th>
+                <th>Gain Type</th>
+                <th>Buy Value</th>
+                <th>Sell Value</th>
+                <th>Capital Gain</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for summary in view.summary %}
+            <tr>
+                <td>{{ broker }}</td>
+                <td>{{ asset_type }}</td>
+                <td>{{ summary.gain_type }}</td>
+                <td>{{ summary.buy_value | currency }}</td>
+                <td>{{ summary.sell_value | currency }}</td>
+                <td>{{ summary.capital_gain | currency }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+    <!-- Adding a blank line after the main section -->
+    {{ blankrowt() }}
+
+<h2>Transactions</h2>
+<div class="holding-transactions">
+    <table>
+        <thead>
+            <tr>
+                <th>Sale Date</th>
+                <th>Buy Price</th>
+                <th>Quantity</th>
+                <th>First Purchase Date</th>
+                <th>Gain Type</th>
+                <th>Buy Value</th>
+                <th>Sell Value</th>
+                <th>Capital Gain</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for record in records | sort(attribute="sale_date", reverse=true) %}
+            <tr>
+                <td>{{ record.sale_date }}</td>
+                <td>{{ record.buy_price | currency }}</td>
+                <td>{{ record.quantity }}</td>
+                <td>{{ record.first_purchase_date }}</td>
+                <td>{{ record.gain_type }}</td>
+                <td>{{ record.buy_value | currency }}</td>
+                <td>{{ record.sell_value | currency }}</td>
+                <td class="{{ 'positive' if record.capital_gain >= 0 else 'negative' }}">
+                    {{ record.capital_gain | currency }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

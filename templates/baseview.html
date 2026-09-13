@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="/static/baseview.css">
+{% endblock %}
+
+{% block content %}
+<header>
+    <div>
+        <p class="eyebrow">FINMAN</p>
+        <h1>
+            {% block title %}
+                {% if request.url.path == "/broker" %}
+                    Broker Overview
+                {% elif request.url.path == "/tax" or request.url.path == "/tax/broker" %}
+                    Tax {{ view.fy }} Overview
+                {% else %}
+                    Portfolio Overview
+                {% endif %}
+            {% endblock %}
+        </h1>
+    </div>
+
+    <div class="view-controls">
+        <span>View:
+            <a href="/portfolio" {% if request.url.path == '/portfolio' %}class="active"{% endif %}>Portfolio</a> |
+            <a href="/broker" {% if request.url.path == '/broker' %}class="active"{% endif %}>Broker</a> |
+            <a href="/tax" {% if request.url.path == '/tax' %}class="active"{% endif %}>Tax Portfolio</a> |
+            <a href="/tax/broker" {% if request.url.path == '/tax/broker' %}class="active"{% endif %}>Tax Broker</a>
+        </span>
+        <form method="get" action="{{ request.url.path }}">
+            <label for="owner">Owner: </label>
+            <select id="owner" name="owner" onchange="this.form.submit()">
+                {% for owner, owner_ids in owners.items() %}
+                    <option value="{{ owner }}" {% if selected_owner == owner %}selected{% endif %}>
+                        {{ owner }}
+                    </option>
+                {% endfor %}
+            </select>
+            {% if request.url.path == "/tax" or request.url.path == "/tax/broker" %}
+                <input type="hidden" name="fy" value="{{ selected_fy }}">
+            {% endif %}
+        </form>
+
+        {% if request.url.path == "/tax" or request.url.path == "/tax/broker" %}
+            <form method="get" action="{{ request.url.path }}">
+                <input type="hidden" name="owner" value="{{ selected_owner }}">
+                <label for="fy">FY: </label>
+                <select id="fy" name="fy" onchange="this.form.submit()">
+                    {% for available_fy in fys %}
+                        <option value="{{ available_fy }}"
+                            {% if selected_fy == available_fy %}selected{% endif %}>
+                            {{ available_fy }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        {% endif %}
+
+        <a href="/refresh_prices?return_to={{ request.url.path }}&owner={{ view.owner }}">↻ Prices</a>
+        <div class="menu-wrapper">
+            <button id="menuToggle" class="clickbtn" type="button">⋮ More</button>
+            <div id="menuDropdown" class="menu-dropdown">
+                <a href="/status?return_url={{ (request.url.path ~ '?owner=' ~ view.owner) | urlencode }}">Status</a>
+                <a href="/settings?return_url={{ (request.url.path ~ '?owner=' ~ view.owner) | urlencode }}">Settings</a>
+                <div class="menu-divider"></div>     
+                <a href="/reingest?return_url={{ (request.url.path ~ '?owner=' ~ view.owner) | urlencode }}">↻ Reingest</a>
+                <a href="#" id="refreshResearchBtn">Refresh Research</a>
+                <a href="/logout">Logout</a>
+                <div class="menu-divider"></div>     
+
+                <div class="menu-section">
+                    <label for="theme-select">Theme</label>
+                    <select id="theme-select">
+                        <optgroup label="Pastel">
+                            <option value="pastel-mint">Mint</option>
+                            <option value="pastel-lavender">Lavender</option>
+                            <option value="pastel-saffron">Saffron</option>
+                        </optgroup>
+                        <optgroup label="Strong">
+                            <option value="strong-navy">Navy</option>
+                            <option value="strong-emerald">Emerald</option>
+                            <option value="strong-crimson">Crimson</option>
+                        </optgroup>
+                        <optgroup label="Gradient">
+                            <option value="gradient-dusk">Dusk</option>
+                            <option value="gradient-oceanic">Oceanic</option>
+                            <option value="gradient-ember">Ember</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+        </div>
+</header>
+
+{% block view_content %}
+{% endblock %}
+
+{% if view.summary and request.url.path != "/tax" and request.url.path != "/tax/broker" %}
+    <section>
+        <h2>Overall Summary</h2>
+        <div class="summary">
+            <div class="total">
+                <strong>{{ view.summary.cost | currency }}</strong>
+                <span>Cost</span>
+            </div>
+
+            <div class="total">
+                <strong>{{ view.summary.net_value | currency }}</strong>
+                <span>Current Value</span>
+            </div>
+
+            <div class="total">
+                <strong class="{{ 'positive' if view.summary.gain_value >= 0 else 'negative' }}">
+                    {{ view.summary.gain_value | currency }}
+                </strong>
+                <span>Gain</span>
+            </div>
+
+            <div class="total">
+                <strong class="{{ 'positive' if view.summary.gain_pct is not none and view.summary.gain_pct >= 0 else 'negative' }}">
+                    {{ view.summary.gain_pct | percent }}
+                </strong>
+                <span>Gain %</span>
+            </div>
+        </div>
+    </section>
+{% endif %}
+
+{% if updated_at %}
+    <div class="toast-timestamp">
+        Last update: {{ updated_at | date("datetime")}}
+    </div>
+{% endif %}
+
+<script>
+    /* ==========================================================================
+    1. DROPDOWN MENU CONTROLLER for ":MORE" button
+    Handles opening, closing, and event propagation for the navigation menu.
+    ========================================================================== */    
+
+    // Fetch the menu trigger button and the target dropdown element from the DOM
+    const toggleBtn = document.getElementById("menuToggle");
+    const dropdown = document.getElementById("menuDropdown");
+
+    // Toggle dropdown visibility when clicking the menu button
+    toggleBtn.addEventListener("click", (e) => {
+        // Prevent click from bubbling up to document (which would instantly close the menu)
+        e.stopPropagation();
+
+        // Toggle the 'show' class to display or hide the menu via CSS
+        dropdown.classList.toggle("show");
+    });
+
+    // Prevent clicks inside the dropdown content from bubbling up and closing the menu
+    dropdown.addEventListener("click", (e) => e.stopPropagation());
+
+    // Global click listener: closes the dropdown whenever a click occurs outside the menu
+    document.addEventListener("click", () => dropdown.classList.remove("show"));
+
+    /* ==========================================================================
+       2. THEME CONTROLLER & STORAGE
+       Manages dark/light theme switching and persists user preferences.
+       ========================================================================== */
+    /**
+     * Updates the application's visual theme and saves the preference.
+     * @param {string} theme - The target theme name (e.g., 'light', 'dark')
+     */
+    function setTheme(theme) {
+        // Apply theme attribute to <html> element to trigger CSS rules (e.g., [data-theme="dark"])
+        document.documentElement.setAttribute("data-theme", theme);
+
+        // Store user choice in browser local storage for persistence across reloads
+        localStorage.setItem("finman-theme", theme);
+    }
+
+    // Reference the theme selector dropdown (if present on the current page)
+    const themeSelect = document.getElementById("theme-select");
+
+    // Initialize theme selector state if the dropdown exists on this layout
+    if (themeSelect) {
+        // Retrieve previously saved theme preference from local storage
+        const saved = localStorage.getItem("finman-theme");
+
+        // Synchronize the HTML select element value with the saved theme
+        if (saved) themeSelect.value = saved;
+
+        // Listen for selection changes to update the theme in real time
+        themeSelect.addEventListener("change", (e) => {
+            // Pass the newly selected value to the setTheme update function
+            setTheme(e.target.value);
+        });
+    }
+</script>
+
+{% endblock %}
+
+
+
