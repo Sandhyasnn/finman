@@ -98,6 +98,7 @@ from typing import Literal
 from ingestion.models import (Holding, Transaction, HoldingDetail, PortfolioSummary, 
                               BrokerSection, BrokerView, PortfolioSection, PortfolioView)
 from market.external_links import security_links
+from market.holdings import YAHOO_ASSET_TYPES_US
 
 # A list of values when view the holding details
 HoldingScope = Literal["current", "total", "closed"]
@@ -230,7 +231,71 @@ def build_holdings(transactions: list[Transaction], scope: HoldingScope = "curre
             else None
         )
 
-        # 7. Get the net gain and net gain percent
+        # 7. USD values for US stocks
+        # Historical USD cost and average buy price come directly from the USD transaction values 
+        # supplied by the source data. Current USD value uses the current market price in USD.
+        # No historical INR amounts are converted using today's FX rate.        
+        usd_cost = 0
+        usd_avg_buy_price = None
+        usd_current_price = None
+        usd_current_value = None
+        usd_gain_value = None
+        usd_gain_pct = None
+
+        if first.asset_type in YAHOO_ASSET_TYPES_US:
+            usd_cost_transactions = [
+                t for t in group
+                if t.transaction_action in BUY_ACTIONS
+                and t.transaction_value_usd is not None
+            ]
+
+            usd_cost = -sum(
+                t.transaction_value_usd
+                for t in usd_cost_transactions
+            )
+
+            usd_avg_buy_price = (
+                usd_cost / abs(quantity)
+                if quantity
+                else None
+            )
+
+            usd_current_price = next(
+                (
+                    t.current_price_usd
+                    for t in group
+                    if t.current_price_usd is not None
+                ),
+                None,
+            )
+
+            usd_current_values = [
+                t.current_value_usd
+                for t in group
+                if t.current_value_usd is not None
+            ]
+
+            usd_current_value = (
+                sum(usd_current_values)
+                if usd_current_values
+                else None
+            )
+
+            if scope == "current":
+                usd_gain_value = (
+                    usd_current_value - usd_cost
+                    if usd_current_value is not None
+                    else None
+                )
+
+                if usd_current_value is not None:
+                    usd_gain_pct = _calculate_transaction_xirr_usd(
+                        group,
+                        usd_current_value,
+                    )
+
+        # 8. Get the net gain and net gain percent in INR   
+        # USD gain is calculated separately above for US stocks.
         # Current and Total include today's market value as the terminal cash flow.
         # Closed uses realized transaction cash flows only.
         if scope == "current":
@@ -245,6 +310,12 @@ def build_holdings(transactions: list[Transaction], scope: HoldingScope = "curre
                 if current_value is not None
                 else None
             )
+            if first.asset_type in YAHOO_ASSET_TYPES_US and usd_current_value is not None:
+                usd_gain_value = usd_current_value - usd_cost
+                usd_gain_pct = _calculate_transaction_xirr_usd(
+                    group,
+                    usd_current_value,
+                )            
         elif scope == "total":
             holding_value = net_value
             gain_value = net_value + (current_value or 0)
@@ -273,10 +344,19 @@ def build_holdings(transactions: list[Transaction], scope: HoldingScope = "curre
                 cost=cost,
                 net_value=holding_value if holding_value is not None else 0,
                 avg_buy_price=avg_buy_price,
+
                 current_price=current_price,
                 current_value=current_value,
                 gain_value=gain_value,
                 gain_pct=gain_pct,
+
+                usd_cost=usd_cost,
+                usd_avg_buy_price=usd_avg_buy_price,
+                usd_current_price=usd_current_price,
+                usd_current_value=usd_current_value,
+                usd_gain_value=usd_gain_value,
+                usd_gain_pct=usd_gain_pct,
+
                 price_date=None,
             )
         )
@@ -396,6 +476,31 @@ def _calculate_transaction_xirr(transactions: list[Transaction], terminal_value:
     dates = [
         transaction.transaction_date
         for transaction in transactions
+    ]
+
+    if terminal_value is not None:
+        cash_flows.append(terminal_value)
+        dates.append(date.today())
+
+    return calculate_xirr(cash_flows, dates)
+
+
+def _calculate_transaction_xirr_usd(transactions: list[Transaction], terminal_value: float | None = None,) -> float | None:
+    """
+    Calculate XIRR using USD transaction values and dates.
+
+    For current holdings, the current USD market value is added as the terminal cash flow at today's date.    
+    """
+    cash_flows = [
+        transaction.transaction_value_usd
+        for transaction in transactions
+        if transaction.transaction_value_usd is not None
+    ]
+
+    dates = [
+        transaction.transaction_date
+        for transaction in transactions
+        if transaction.transaction_value_usd is not None
     ]
 
     if terminal_value is not None:

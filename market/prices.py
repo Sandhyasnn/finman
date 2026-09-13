@@ -41,7 +41,12 @@ def _merge_previous_prices(prices: dict[str, float], previous_prices: dict[str, 
     return prices, stale, missing
 
 def _get_current_price(transaction: Transaction, price: float, usd_inr_rate: float | None,) -> float | None:
-    """Return the current price in INR for the transaction, converting from USD if necessary."""
+    """
+    Return the current portfolio price in INR.
+
+    US stock prices from Yahoo are in USD and are converted using the current USD/INR rate. 
+    Other asset types are returned as-is.    
+    """
     if transaction.asset_type in YAHOO_ASSET_TYPES_US:
         if usd_inr_rate is None:
             return None
@@ -51,7 +56,11 @@ def _get_current_price(transaction: Transaction, price: float, usd_inr_rate: flo
 
 def _update_transaction_prices(transactions: list[Transaction], securities: dict[str, dict[str, str]], 
                                prices: dict[str, float], usd_inr_rate: float | None = None,) -> dict:
-    """Update current market price and value for open transactions."""
+    """
+    Update current market prices and values for open transactions.
+
+    For US stocks, both USD market values and INR portfolio values are retained on the transaction.    
+    """
     yahoo = securities["yahoo"]
     amfi = securities["amfi"]
 
@@ -77,7 +86,16 @@ def _update_transaction_prices(transactions: list[Transaction], securities: dict
         price = prices.get(price_key)
 
         if price is not None:
+            # For US stocks, retain Yahoo's raw USD market price/value.
+            # The existing current_price/current_value fields below remain
+            # the INR portfolio values using the current USD/INR rate where needed
+            if transaction.asset_type in YAHOO_ASSET_TYPES_US:
+                transaction.current_price_usd = price
+                transaction.current_value_usd = price * transaction.transaction_quantity            
+
+            # Existing INR current price/value
             current_price = _get_current_price(transaction, price, usd_inr_rate)            
+
             if current_price is None:
                 transaction.current_price = None
                 transaction.current_value = None
@@ -144,7 +162,8 @@ def refresh_prices(transactions: list[Transaction], output_file: str | Path) -> 
         if usd_inr_rate is not None:
             fx_status = "current"
         else:
-            # If current FX is unavailable, use the previous rate if available.
+            # If the current USD/INR rate is unavailable, use the previous
+            # snapshot rate so INR portfolio values can still be calculated.            
             previous_exchange_rates = previous.get("exchange_rates", {})
             previous_usd_inr = previous_exchange_rates.get("USDINR")
 
@@ -194,7 +213,7 @@ def refresh_prices(transactions: list[Transaction], output_file: str | Path) -> 
     stock_stale = sorted(set(yahoo_keys) & set(stale))
     mf_stale = sorted(set(amfi_keys) & set(stale))
 
-    # updatA the date and time when theprices were obtained
+    # update the date and time when theprices were obtained
     snapshot = {"updated_at": updated_at, "prices": prices, 
                     "exchange_rates": {"USDINR": usd_inr_rate},
                 "stale": stale, "stale_exchange_rates": stale_exchange_rates,}

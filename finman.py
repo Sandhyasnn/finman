@@ -404,6 +404,7 @@ def portfolio(request: Request, owner: str | None = None):
 
     price_status = getattr(request.app.state, "price_refresh_status", None)
     updated_at = price_status.get("updated_at") if price_status else None
+    usd_inr = price_status.get("exchange_rates", {}).get("USDINR") if price_status else None
 
     return templates.TemplateResponse(
         request,
@@ -415,6 +416,7 @@ def portfolio(request: Request, owner: str | None = None):
             "view_url": "/portfolio",   # "/broker" for Broker
             "total_by_key": total_by_key,
             "updated_at": updated_at,
+            "usd_inr": usd_inr,
         },
     )
     # return view.model_dump(mode="json")

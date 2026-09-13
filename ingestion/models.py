@@ -37,13 +37,21 @@ class Transaction(BaseModel):
     buy_price: float | None = None
 
     # Current market enrichment
+    # INR values are the primary portfolio values.
     current_price: float | None = None
     current_value: float | None = None
 
+    # Historical USD transaction data and FX rate supplied by the source transaction data. 
+    # These are not recalculated using today's USD/INR rate
     exchange_rate: float | None = None
     transaction_price_usd: float | None = None
     transaction_value_usd: float | None = None
 
+    # Current USD market enrichment for US stocks.
+    # current_price_usd is the raw Yahoo market price in USD;
+    # current_value_usd is current_price_usd × transaction_quantity.    
+    current_price_usd: float | None = None
+    current_value_usd: float | None = None
 
 class TaxTransaction(BaseModel):
     """
@@ -103,6 +111,17 @@ class Holding(BaseModel):
     current_value: float | None = None
     gain_value: float | None = None
     gain_pct: float | None = None
+
+    # USD values are populated for US STOCK holdings only.
+    # Historical cost/average price use the USD transaction data;
+    # current price/value use the current USD market price.
+    usd_cost: float = 0
+    usd_avg_buy_price: float | None = None
+    usd_current_price: float | None = None
+    usd_current_value: float | None = None
+    usd_gain_value: float | None = None
+    usd_gain_pct: float | None = None
+
     price_date: date | None = None
 
 class PortfolioSummary(BaseModel):
