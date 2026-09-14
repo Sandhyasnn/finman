@@ -1,0 +1,102 @@
+FINMAN — PORTFOLIO DASHBOARD ARCHITECTURE
+
+Purpose
+
+This document records the agreed architecture and phased objective for
+FinMan. Use it as context when continuing future FinMan development.
+
+OVERALL PRINCIPLE
+
+The new Portfolio Dashboard is an ENVELOPE ABOVE the existing FinMan
+system.
+
+The existing Shares / MF functionality should remain intact. The
+dashboard combines: 1. Consolidated investments from consolidated.json,
+shown as-is. 2. The existing Portfolio view summary (not Broker view),
+using its total rows.
+
+The dashboard is not a replacement for the existing portfolio/broker
+system and should not force consolidated investments through the
+transaction engine.
+
+PHASE 1 — ARCHITECTURE
+
+Objectives: - Create the new Portfolio Dashboard. - Establish common
+investment/asset concepts. - Keep existing Shares/MF functionality
+untouched. - Ingest consolidated.xlsx, apply its configured row filter,
+map the selected rows, and save them separately as consolidated.json. -
+The dashboard consumes consolidated.json directly; it does not calculate
+transactions, XIRR, price refreshes, or other portfolio mechanics for
+it.
+
+Dashboard: - Owner remains a selector at the dashboard level. -
+Consolidated section: display consolidated.json for the selected
+owner. - Shares/MF section: use the existing Portfolio view’s
+total/summary rows. - Clicking dashboard items can navigate into
+existing portfolio/broker routes. - Provide an overall Shares/MF
+Portfolio link to the existing /portfolio view.
+
+DATA BOUNDARIES
+
+Existing market system: Excel datasets -> transactions ->
+transactions.json -> price refresh -> holdings -> portfolio / broker /
+holding detail
+
+New consolidated system: consolidated.xlsx -> filter -> mapping ->
+consolidated.json -> dashboard
+
+Do NOT put consolidateddata into transactions.json.
+
+Reasons: - consolidated investments are already summarized data, not
+transaction histories. - price refresh must not process them as market
+securities. - XIRR should not be manufactured for them in Phase 1. -
+consolidated.json is a separate persistence/data boundary.
+
+PHASE 1 DASHBOARD DATA SOURCES
+
+A. consolidated.json - Display as-is. - Filter by dashboard-selected
+owner. - No transaction processing. - No XIRR. - No live price
+refresh. - No additional portfolio calculations in Phase 1.
+
+B. Existing Portfolio view - Use Portfolio view, not Broker view. - Use
+its total/summary rows. - Respect the dashboard owner selection. - Keep
+the existing calculation engine unchanged.
+
+NAVIGATION
+
+Dashboard -> consolidated item -> appropriate future/detail route
+
+Dashboard -> Shares/MF item -> existing portfolio/broker/holding routes
+
+Dashboard -> Shares/MF Portfolio -> existing /portfolio functionality
+
+The dashboard is an entry/envelope layer; the existing portfolio and
+broker screens remain the detailed operational system.
+
+FUTURE PHASES
+
+Phase 2 — Fixed / Long-term - PPF - EPF - Bonds - FDs, if relevant
+
+Phase 3 — Commodities - SGB - Gold - Silver - Live pricing
+
+Phase 4 — Dashboard Intelligence - Allocation - Total return - Income -
+Maturity calendar - Liquidity - Asset-class charts
+
+IMPORTANT PHASE DISCIPLINE
+
+Do not pull Phase 2–4 functionality into Phase 1 prematurely.
+
+Phase 1 establishes: - clean data boundaries, - consolidated.json
+persistence, - owner selection, - dashboard presentation, - reuse of the
+existing Portfolio summary, - navigation into the existing FinMan
+system.
+
+The dashboard should remain deliberately thin at this stage.
+
+CURRENT IMPLEMENTATION STATUS
+
+As of 14-Sep-2026: - consolidateddata ingestion is working through Excel
+reading, configured filtering, and row mapping. - Next: persist mapped
+consolidated records to consolidated.json. - Then: make them available
+to the new dashboard. - Then: build the dashboard route/template using
+the two data sources above.

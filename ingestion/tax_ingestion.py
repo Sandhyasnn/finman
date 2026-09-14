@@ -93,6 +93,9 @@ def ingest_tax(datasets, output_file: str | Path) -> dict:
 
     for dataset_name in datasets.model_fields:
         dataset = getattr(datasets, dataset_name)
+        # Skip datasets withou tax mapping (like consolidateddata)
+        if dataset.tax is None:
+            continue
 
         dataset_cache_file = (cache_dir / f"tax_{dataset_name}.json")
 

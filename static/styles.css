@@ -361,3 +361,30 @@ footer {
             margin-top: 1px;
         }
 }
+
+/* =========================================================
+   DASHBOARD SPECIFIC STYLING
+   ========================================================= */
+    .dashboard th:not(:first-child),
+    .dashboard td:not(:first-child) {
+        text-align: right;
+    }
+
+   @media (max-width: 480px) {
+    
+    .dashboard table {
+        font-size: 12px;
+    }
+
+    .dashboard th,
+    .dashboard td {
+        padding: 3px 4px 3px 0;
+        white-space: nowrap;
+    }
+
+    .dashboard th {
+        font-size: 11px;
+    }
+}
+
+

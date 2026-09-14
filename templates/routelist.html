@@ -166,6 +166,14 @@
             {% endfor %}</li>
     </ul>
 
+    <h2>Consolidated View</h2>
+    <ul>
+        {% set view_types = ["portfolio","broker"] %}
+        {% set owners = ["MALT","MALT(Z)","RSN","Sandhya","USHA"] %}
+
+        <li><a href="/debug/consolidated">/debug/consolidated.json</li>
+    </ul>
+
     <p class="note">
         <strong>Note:</strong> Replace <code>localhost:5003</code> with your actual server address if accessing remotely.<br>
         Some endpoints (like /admin/reindex) may require authentication in future versions.

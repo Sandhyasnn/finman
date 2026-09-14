@@ -12,9 +12,10 @@ from pathlib import Path
 from ingestion.config import DatasetConfig
 from logger import logger
 from ingestion.models import Transaction
+from ingestion.config import TransactionMapping
 
 from ingestion.excel_reader import read_excel_rows
-from ingestion.mapper import map_transaction_row, validate_mapping, apply_row_filter
+from ingestion.mapper import map_transaction_row, validate_mapping, apply_row_filter, map_filter_values
 from ingestion.json_io import read_json, write_json
 
 # Normalized FinMan investment transaction.
@@ -30,9 +31,15 @@ class DatasetIngestionResult(BaseModel):
 def _ingest_dataset_transactions(dataset_name: str, dataset: DatasetConfig,) -> dict:
     """
     Ingest transactions from one configured dataset.
-    Reads the Excel worksheet, validates its mapping, maps and filters rows, validates resulting transactions with Pydantic, and returns the successful dataset result.
-    Returns: A list of validated Transaction models.
-    Raises: ValueError: If the mapping or any transaction row is invalid.
+
+    Reads the configured Excel worksheet, validates its mapping, applies the configured row filter before full
+    transaction mapping, validates retained rows with Pydantic, and returns the successful dataset result.
+
+    Returns:
+        Dataset ingestion result containing the validated transactions.
+
+    Raises:
+        ValueError: If the mapping or any retained transaction row is invalid.
     """
     logger.info("Starting transaction ingestion for dataset '%s'", dataset_name,)
 
@@ -60,19 +67,19 @@ def _ingest_dataset_transactions(dataset_name: str, dataset: DatasetConfig,) -> 
 
     for row_number, row in enumerate(rows, start=1):
         try:
-            values = map_transaction_row(row, dataset.transactions,)
-            if dataset_name == "stockdata" and row_number == 383:
-                logger.debug(
-                    "DEBUG stockdata row 383 raw Excel row: %s",
-                    row,
-                )
-                logger.debug(
-                    "DEBUG stockdata row 383 mapped transaction: %s",
-                    values,
-                )            
-            if not apply_row_filter(values, dataset.row_filter):
+            # Map only the fields needed to evaluate the row filter.
+            # This allows unwanted rows to be discarded before converting the remaining transaction fields.
+            filter_values = map_filter_values(row, dataset.transactions, dataset.row_filter)            
+
+            # If the row filter succeeds on the row, move to the next while keep a count of the rows that have been filtered
+            if not apply_row_filter(filter_values, dataset.row_filter):
                 rows_filtered += 1
                 continue
+
+            # Fully map only those rows that passed the configured row filter.
+            # This avoids mapping colulmns in filterd rows that may not have appropriate values (like invalid dates)
+            values = map_transaction_row(row, dataset.transactions)
+
             transaction = Transaction.model_validate(values)
             transactions.append(transaction)
 

@@ -61,6 +61,9 @@ def _apply_transform(value: Any, transform: dict[str, Any],) -> Any:
     Apply a configured transformation to a source value.
     Internal helper: currently supports configured contains and identity transformations.    
     """
+    if transform.get("type") == "negate": # ...
+        return -float(value)
+    
     if "contains" in transform:
         search_value = transform["contains"]
 
@@ -79,7 +82,7 @@ def _apply_transform(value: Any, transform: dict[str, Any],) -> Any:
     raise ValueError(f"Unsupported transformation: {transform}")
 
 # ============================================================
-# Internal configuration functions
+# Configuration functions
 # ============================================================
 def map_value(mapping: Any, row: dict[str, Any],) -> Any:
     """
@@ -118,6 +121,23 @@ def map_value(mapping: Any, row: dict[str, Any],) -> Any:
 
     raise TypeError(f"Unsupported mapping type: {type(mapping).__name__}")
 
+def map_filter_values(row: dict[str, Any], mapping: TransactionMapping, row_filter: RowFilter | None) -> dict[str, Any]:
+    """
+    Map only the normalized fields required by the row filter.
+
+    Filtering is performed before mapping the complete transaction so that rows intended to be excluded 
+    do not fail on unrelated field conversions (for example, invalid or blank date values).
+
+    Returns:
+        Dictionary containing the normalized fields referenced by theconfigured row-filter conditions.
+    """
+    if row_filter is None:
+        return {}
+
+    return {
+        condition.field: map_value(getattr(mapping, condition.field), row,)
+        for condition in row_filter.conditions
+    }
 
 # ============================================================
 # Transaction Validation and  Mapping functions
@@ -233,6 +253,10 @@ def apply_row_filter(row: dict[str, Any], row_filter: RowFilter | None,) -> bool
             if field_value == condition.value:
                 return False
 
+        elif condition.op == "in":
+            if field_value not in condition.value:
+                return False
+
         else:
             raise ValueError(
                 f"Unsupported row filter operator '{condition.op}' "
@@ -329,4 +353,24 @@ def map_tax(row: dict[str, Any], mapping: TaxMapping) -> TaxTransaction:
                 errors.append(f"field '{field_name}': {error['msg']}")
 
         raise ValueError("; ".join(errors)) from exc
-    
+
+#==============================================================
+# Mapper function for the consolidated view
+#==============================================================
+def map_consolidated_row(row: dict[str, Any], mapping: TransactionMapping) -> dict[str, Any]:
+    """
+    Map one consolidated Excel row to the normalized consolidated field set.
+    """
+    return {
+        "security": map_value(mapping.security, row),
+        "owner": map_value(mapping.owner, row),
+        "asset_type": map_value(mapping.asset_type, row),
+        "asset_subtype": map_value(mapping.asset_subtype, row),
+        "broker": map_value(mapping.broker, row),
+
+        "invested_date": map_value(mapping.buy_date, row),
+        "maturity_date": map_value(mapping.maturity_date, row),
+
+        "invested_value": map_value(mapping.buy_price, row),
+        "current_value": map_value(mapping.current_value, row),
+    }

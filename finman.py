@@ -32,8 +32,9 @@ from ingestion.config import load_config, FinManConfig, get_config_environment
 from ingestion.transactions import ingest_transactions
 from market.prices import refresh_prices
 from market.external_links import configure_external_links
-from ingestion.tax import ingest_tax
+from ingestion.tax_ingestion import ingest_tax
 from ingestion.json_io import read_json, write_json
+from ingestion.consolidated import ingest_consolidated
 from portfolio import (
     build_holdings,
     build_current_holdings,
@@ -50,6 +51,7 @@ from tax import (
 )
 from ingestion.models import PortfolioView, BrokerView, TaxView
 from ai.service import explain_holding, check_ai_health
+
 from debug import router as debug_router
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -75,6 +77,25 @@ def run_ingestion(app):
     except ValueError as exc:
         app.state.ingestion_status = {"status": "error", "message": str(exc)}
         raise
+
+def run_consolidated_ingestion(app):
+    config = app.state.config
+
+    output_file = (Path(app.state.cache_dir) / config.cache.consolidated_file)
+
+    result = ingest_consolidated(dataset=config.consolidateddata, output_file=output_file)
+
+    app.state.consolidated = result["holdings"]
+
+    app.state.consolidated_ingestion_status = {
+        "status": result["status"],
+        "rows_read": result["rows_read"],
+        "rows_filtered": result["rows_filtered"],
+        "holdings_validated": result["holdings_validated"],
+        "output_file": result["output_file"],
+    }
+
+    return result
 
 def run_tax_ingestion(app): 
     # Application-level orchestration around tax ingestion services.
@@ -123,6 +144,7 @@ def run_price_refresh(app):
 def refresh_data(app):
     """Refresh all FinMan data without restarting the application."""
     run_ingestion(app)
+    run_consolidated_ingestion(app)
     run_tax_ingestion(app)
     run_price_refresh(app)
 
@@ -358,7 +380,6 @@ def reingest(request: Request, return_url: str = "/portfolio"):
 
     return RedirectResponse(url=return_url)
 
-@app.get("/")
 @app.get("/portfolio" )#, response_class=HTMLResponse)
 def portfolio(request: Request, owner: str | None = None):
     logger.debug("\n" + "=" * 50 + f" Accessed /portfolio?owner={owner} ")
@@ -754,6 +775,142 @@ def tax_holding_detail(request: Request, fy: str, owner: str, asset_type: str,
     #         for record in records
     #     ],
     # }
+
+@app.get("/")
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request, owner: str | None = None):
+    """
+    Render the Portfolio Dashboard.
+    The dashboard combines two independent data sources:
+    1. Consolidated investments
+       - Already summarized investments such as PPF, EPF, Bonds, etc.
+       - Loaded into app.state.consolidated during application startup/reingest.
+       - These records are displayed directly; they do not go through the
+         transaction/price-refresh/portfolio calculation pipeline.
+    2. Shares & Mutual Funds
+       - Uses the existing portfolio calculation layer.
+       - build_portfolio_view() creates sections grouped by asset type and owner.
+       - The dashboard uses only the section summaries and aggregates them by asset type.
+       - No separate portfolio calculation logic is introduced here.
+
+    Owner handling follows the same configuration used by Portfolio/Broker:
+        - Individual owner -> that owner's data
+        - Grouped owner    -> all underlying owners in the group
+        - ALL              -> all owners
+    """    
+    logger.debug("\n" + "=" * 50 + f" Accessed /dashboard?owner={owner}")
+
+    # ------------------------------------------------------------
+    # Owner selection
+    # ------------------------------------------------------------
+    # Get the configured UI owners.  These may represent either
+    # individual owners or groups of underlying owners.
+    owners = request.app.state.config.frontend.owners
+
+    # Use the configured default owner when no owner is supplied.
+    if owner is None:
+        owner = request.app.state.config.frontend.default_owner
+
+    # Resolve the UI owner into the actual underlying owner IDs.
+    #
+    # For example:
+    #   "RSN"   -> ["RSN"]
+    #   "FAMILY" -> ["RSN", "MALT"]
+    #   "ALL"   -> [None]
+    selected_owners = _resolve_owners(owner, owners)
+
+    # ----------------------------------------------------------
+    # Consolidated investments
+    #
+    # When ALL is selected, _resolve_owners() returns [None].
+    # In that case no owner filtering is required.
+    # ----------------------------------------------------------
+    if None in selected_owners:
+        consolidated = request.app.state.consolidated
+    else:
+        consolidated = [
+            holding
+            for holding in request.app.state.consolidated
+            if holding.owner in selected_owners
+        ]
+
+    # ------------------------------------------------------------
+    # Shares / Mutual Funds summary
+    # ------------------------------------------------------------
+    # Reuse the existing Portfolio calculation layer.
+    #
+    # build_portfolio_view() already:
+    #   - filters holdings by owner
+    #   - groups them into portfolio sections
+    #   - calculates the summary for each section
+    #
+    # The dashboard does not need the individual holdings.  It only needs those section summaries.
+    sections = []
+
+    for selected_owner in selected_owners:
+        owner_view = build_portfolio_view(request.app.state.transactions, request.app.state.holdings, owner=selected_owner)
+        sections.extend(owner_view.sections)
+
+    # ------------------------------------------------------------
+    # Aggregate Shares / MF sections by asset type
+    # ------------------------------------------------------------
+    # Portfolio sections are normally separated by asset type AND owner.  
+    # The dashboard combines those sections so that there is one row per asset type:
+    #     MF(Equity)
+    #     MF(Debt)
+    #     ...
+    # This means the dashboard's "Asset Type" totals represent the total for that asset type across all selected owners.
+    shares_mf_summary = {}
+
+    for section in sections:
+        summary = section.summary
+
+        # Create the aggregate row the first time this asset type is encountered.
+        if section.asset_type not in shares_mf_summary:
+            shares_mf_summary[section.asset_type] = {
+                "asset_type": section.asset_type,
+                "invested_value": 0,
+                "current_value": 0,
+                "gain": 0,
+                "gain_pct": None,
+            }
+
+        item = shares_mf_summary[section.asset_type]
+
+        # Add the section's values to the asset-type total.
+        item["invested_value"] += summary.cost
+        item["current_value"] += summary.net_value
+        item["gain"] += summary.gain_value
+
+    # ------------------------------------------------------------
+    # Calculate aggregate gain percentage
+    # ------------------------------------------------------------
+    # Gain percentage must be calculated from the aggregated values,
+    # rather than averaging the individual section percentages.
+    #
+    # Example:
+    #     total gain % = total gain / total invested value
+    for item in shares_mf_summary.values():
+        if item["invested_value"]:
+            item["gain_pct"] = item["gain"] / item["invested_value"]
+
+    # Jinja iterates over lists, whereas the aggregation above uses a dictionary keyed by asset type.
+    # Convert the dictionary values into a list for the template.
+    shares_mf_summary = list(shares_mf_summary.values())
+
+    # ------------------------------------------------------------
+    # Render dashboard
+    # ------------------------------------------------------------
+    return templates.TemplateResponse(
+        request,
+        app.state.config.template_names.dashboard_template,
+        {
+            "owners": owners,
+            "selected_owner": owner,
+            "consolidated": consolidated,
+            "shares_mf_summary": shares_mf_summary,
+        },
+    )
 
 # ------------------------------------------------------------
 # Settings helpers

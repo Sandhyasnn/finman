@@ -353,7 +353,7 @@ def debug_tax2(request: Request, dataset: str):
         for tax in taxes
     ]
 
-from ingestion.tax import ingest_tax
+from ingestion.tax_ingestion import ingest_tax
 @router.get("/ingest-tax")
 def debug_ingest_tax(request: Request):
     config = request.app.state.config
@@ -780,3 +780,12 @@ def debug_tax(request: Request, fy: str, owner: str = "ALL", view: str = "portfo
         raise HTTPException(status_code=400, detail="view must be 'portfolio' or 'broker'")
 
     return tax_view.model_dump(mode="json")
+
+
+@router.get("/consolidated")
+def debug_consolidated(request: Request):
+    cache_dir: Path = request.app.state.cache_dir
+    with open(cache_dir / "consolidated.json", encoding="utf-8") as f:
+        return json.load(f)
+
+    

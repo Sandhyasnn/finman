@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="/static/baseview.css">
+{% endblock %}
+
+{% block content %}
+<header>
+    <div>
+        <p class="eyebrow">FINMAN</p>
+        <h1>Investments Dashboard</h1>
+    </div>
+
+    <div class="view-controls">
+
+        <span>View:
+            <a href="/dashboard" class="active">Dashboard</a> |
+            <a href="/portfolio">Portfolio</a> |
+            <a href="/broker">Broker</a> |
+            <a href="/tax">Tax Portfolio</a> |
+            <a href="/tax/broker">Tax Broker</a>
+        </span>
+
+        <form method="get" action="/dashboard">
+            <label for="owner">Owner: </label>
+            <select id="owner" name="owner" onchange="this.form.submit()">
+                {% for owner, owner_ids in owners.items() %}
+                    <option value="{{ owner }}"
+                        {% if selected_owner == owner %}selected{% endif %}>
+                        {{ owner }}
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <a href="/reingest?return_url=/dashboard?owner={{ selected_owner | urlencode }}">
+            ↻ Reingest
+        </a>
+
+    </div>
+</header>
+
+
+<!-- ============================================================
+     CONSOLIDATED INVESTMENTS
+     ============================================================ -->
+<div class="dashboard">
+<section>
+    <h2>Consolidated Investments</h2>
+
+    {% if consolidated %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Investment</th>
+                    <th>Type</th>
+                    <th>Owner</th>
+                    <th>Invested Date</th>
+                    <th>Maturity Date</th>
+                    <th>Invested Value</th>
+                    <th>Current Value</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for holding in consolidated %}
+                <tr>
+                    <td>{{ holding.security }}</td>
+                    <td>{{ holding.asset_type }}</td>
+                    <td>{{ holding.owner }}</td>
+                    <td>{{ holding.invested_date | date }}</td>
+                    <td>{{ holding.maturity_date | date }}</td>
+                    <td>{{ holding.invested_value | currency }}</td>
+                    <td>{{ holding.current_value | currency }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No consolidated investments.</p>
+    {% endif %}
+</section>
+
+
+<!-- ============================================================
+     SHARES / MF
+     ============================================================ -->
+
+<h2>Shares & Mutual Funds</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Asset Type</th>
+            <th>Invested</th>
+            <th>Current Value</th>
+            <th>Gain</th>
+            <th>Gain %</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in shares_mf_summary %}
+        <tr>
+            <td>{{ item.asset_type }}</td>
+            <td>{{ item.invested_value | currency }}</td>
+            <td>{{ item.current_value | currency }}</td>
+            <td>{{ item.gain | currency }}</td>
+            <td>{{ item.gain_pct | percent }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% endblock %}

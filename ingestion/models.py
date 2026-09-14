@@ -124,6 +124,24 @@ class Holding(BaseModel):
 
     price_date: date | None = None
 
+class ConsolidatedHolding(BaseModel):
+    """
+    Normalized consolidated investment record.
+
+    These records are already summarized investments and are not
+    transactions. They are used directly by the Portfolio Dashboard.
+    """
+    security: str
+    owner: str
+    asset_type: str
+    asset_subtype: str | None = None
+    broker: str | None = None
+
+    invested_date: date | None = None
+    maturity_date: date | None = None
+    invested_value: float = 0
+    current_value: float = 0
+
 class PortfolioSummary(BaseModel):
     """ Aggregated portfolio values for a filtered set of holdings."""
     quantity: float = 0

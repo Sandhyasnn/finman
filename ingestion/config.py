@@ -77,6 +77,7 @@ class TemplateNamesConfig(BaseModel):
     tax_holding_template: str
     settings_template: str
     research_template: str
+    dashboard_template: str
 
 # ------------------------------------------------------------
 # AI
@@ -125,6 +126,7 @@ class CacheConfig(BaseModel):
     mf_master: str
     research: str
     price_snapshot: str
+    consolidated_file: str
 
 # ============================================================
 # Excel / Dataset Configuration
@@ -225,6 +227,7 @@ class TransactionMapping(BaseModel):
     asset_subtype: MappingValue
     broker: MappingValue
     buy_date: MappingValue
+    maturity_date: MappingValue | None = None
     buy_price: MappingValue
     current_price: MappingValue
     current_value: MappingValue
@@ -291,7 +294,7 @@ class DatasetConfig(BaseModel):
     row_filter: RowFilter | None = None
 
     transactions: TransactionMapping
-    tax: TaxMapping
+    tax: TaxMapping | None = None  # Tax is optional since we dont have it for the deposits
 
 # ------------------------------------------------------------
 # Dataset collection
@@ -304,6 +307,13 @@ class DatasetsConfig(BaseModel):
     mfdata: DatasetConfig
     smallcasedata: DatasetConfig
     msftdata: DatasetConfig
+
+class ConsolidatedDataConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    excel_file: str
+    row_filter: RowFilter | None = None
+    transactions: TransactionMapping
 
 # ------------------------------------------------------------
 # External research links
@@ -346,6 +356,7 @@ class FinManConfig(BaseModel):
     ai: AIConfig
     cache: CacheConfig
     datasets: DatasetsConfig
+    consolidateddata: ConsolidatedDataConfig
 
     # URL templates and metadata for external security research links.
     external_links: ExternalLinksConfig
@@ -387,6 +398,8 @@ def _resolve_config_paths(config: dict, base_dir: Path) -> dict:
     for dataset in config["datasets"].values():
         dataset["excel_file"] = _resolve_path(dataset["excel_file"], base_dir)
 
+    config["consolidateddata"]["excel_file"] = _resolve_path(config["consolidateddata"]["excel_file"], base_dir
+                                                             )
     config["server"]["log_file"] = _resolve_path(config["server"]["log_file"], base_dir)
     config["server"]["cache_dir"] = _resolve_path(config["server"]["cache_dir"], base_dir)
 
