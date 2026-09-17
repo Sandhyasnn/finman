@@ -12,14 +12,13 @@
     </div>
 
     <div class="view-controls">
-
         <span>View:
-            <a href="/dashboard" class="active">Dashboard</a> |
-            <a href="/portfolio">Portfolio</a> |
-            <a href="/broker">Broker</a> |
-            <a href="/tax">Tax Portfolio</a> |
-            <a href="/tax/broker">Tax Broker</a>
-        </span>
+            <a href="/dashboard?owner={{ selected_owner | urlencode }}" class="active">Dashboard</a> |
+            <a href="/portfolio?owner={{ selected_owner | urlencode }}">Portfolio</a> |
+            <a href="/broker?owner={{ selected_owner | urlencode }}">Broker</a> |
+            <a href="/tax?owner={{ selected_owner | urlencode }}">Tax Portfolio</a> |
+            <a href="/tax/broker?owner={{ selected_owner | urlencode }}">Tax Broker</a>
+        </span>        
 
         <form method="get" action="/dashboard">
             <label for="owner">Owner: </label>
@@ -32,11 +31,46 @@
                 {% endfor %}
             </select>
         </form>
-
-        <a href="/reingest?return_url=/dashboard?owner={{ selected_owner | urlencode }}">
-            ↻ Reingest
+        <a href="/refresh_prices?return_to=/dashboard&owner={{ selected_owner | urlencode }}">
+            ↻ Prices
         </a>
 
+        <div class="menu-wrapper">
+            <button id="menuToggle" class="clickbtn" type="button">⋮ More</button>
+            <div id="menuDropdown" class="menu-dropdown">
+                <a href="/status?return_url={{ ('/dashboard?owner=' ~ selected_owner) | urlencode }}">
+                    Status
+                </a>
+                <a href="/settings?return_url={{ ('/dashboard?owner=' ~ selected_owner) | urlencode }}">
+                    Settings
+                </a>
+                <div class="menu-divider"></div>
+                <a href="/reingest?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}">↻ Reingest</a>
+                <a href="#" id="refreshResearchBtn">Refresh Research</a>
+                <a href="/logout">Logout</a>
+                <div class="menu-divider"></div>
+                <div class="menu-section">
+                    <label for="theme-select">Theme</label>
+                    <select id="theme-select">
+                        <optgroup label="Pastel">
+                            <option value="pastel-mint">Mint</option>
+                            <option value="pastel-lavender">Lavender</option>
+                            <option value="pastel-saffron">Saffron</option>
+                        </optgroup>
+                        <optgroup label="Strong">
+                            <option value="strong-navy">Navy</option>
+                            <option value="strong-emerald">Emerald</option>
+                            <option value="strong-crimson">Crimson</option>
+                        </optgroup>
+                        <optgroup label="Gradient">
+                            <option value="gradient-dusk">Dusk</option>
+                            <option value="gradient-oceanic">Oceanic</option>
+                            <option value="gradient-ember">Ember</option>
+                        </optgroup>
+                    </select>
+                </div>  
+            </div>
+        </div>
     </div>
 </header>
 
@@ -110,5 +144,7 @@
     </tbody>
 </table>
 </div>
+
+<script src="/static/finman.js"></script>
 
 {% endblock %}

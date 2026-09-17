@@ -6,7 +6,15 @@ and therefore require a market price.
 from ingestion.models import Transaction
 from market.yahoo_provider import normalize_yahoo_symbol
 
-YAHOO_ASSET_TYPES = {"Stock", "ETF", "SMALLCASE"}
+# YAHOO_ASSET_TYPES = {"Stock", "ETF", "SMALLCASE"}
+YAHOO_ASSET_TYPES = {
+    "Stock",
+    "ETF",
+    "House of Tatas",
+    "The Naked Trader",
+    "Reality Tracker",
+    "Mi_NNF10 Momentum",
+}
 YAHOO_ASSET_TYPES_US = {"US STOCK"}
 AMFI_ASSET_TYPES = {"MF(Equity)", "MF(Debt)"}
 

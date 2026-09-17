@@ -2,12 +2,12 @@
 {% from "macros.html" import blankrow %}
 
 {% block title %}
-    Tax {{ view.fy }} Overview
+    Tax {{ view.fy }}
 {% endblock %}
 
 {% block view_content %}
 <div style="margin-bottom: 1rem;">
-    <a href="/portfolio">← Portfolio</a>
+    <a href="/portfolio?owner={{ view.owner | urlencode }}">← Portfolio</a>
 </div>
 
 {% if view.sections %}
