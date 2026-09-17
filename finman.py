@@ -22,10 +22,15 @@ from datetime import datetime
 from urllib.parse import parse_qs, quote
 
 import uvicorn
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+
+# SessionMiddleware provides the browser session used by FinMan
+# authentication. The authentication helpers are kept separately in auth.py.
+from starlette.middleware.sessions import SessionMiddleware
+from auth import authenticate, get_auth_config, require_login
 
 from logger import configure_logger, logger
 from ingestion.config import load_config, FinManConfig, get_config_environment
@@ -218,6 +223,18 @@ async def lifespan(app: FastAPI):
 # Application initialization
 # ------------------------------------------------------------
 app = FastAPI(title="FinMan", version="0.1.0", lifespan=lifespan)
+
+# Authentication / browser session
+# FinMan uses a signed browser session to remember successful login.
+#
+# SessionMiddleware stores the session data in a browser cookie and uses FINMAN_SESSION_SECRET to sign the cookie.
+# The secret is kept separate from the FinMan login password and is read from the environment rather than config.json.
+#
+# Authentication is applied to individual application routes using Depends(require_login).
+# The /login and /logout routes remain public.
+_, session_secret = get_auth_config()
+app.add_middleware(SessionMiddleware, secret_key=session_secret, same_site="lax", https_only=False)  # FinMan currently runs over HTTP on the LAN.
+
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 # ------------------------------------------------------------
@@ -294,8 +311,95 @@ templates.env.filters["currency"] = format_currency
 templates.env.filters["date"] = format_date
 
 # ------------------------------------------------------------
+# Authentication routes
+# ------------------------------------------------------------
+# These routes intentionally remain public:
+#
+#   GET  /login   - Display the login page.
+#   POST /login   - Validate the password and create an authenticated session.
+#   GET  /logout  - Clear the authenticated session.
+#
+# All other protected application routes use Depends(require_login).
+# The authentication implementation itself is kept in auth.py.
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """
+    Display the FinMan login page.
+
+    The optional "error" query parameter is used to display a login failure message. The optional "next" parameter 
+    identifies the page the user originally requested and allows FinMan to return there after successful authentication.
+    """    
+    error = request.query_params.get("error")
+    next_url = request.query_params.get("next", "/dashboard")
+
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {
+            "request": request,
+            "error": error,
+            "next_url": next_url,
+        },
+    )
+
+@app.post("/login")
+async def login(request: Request):
+    """
+    Authenticate the user and establish the FinMan browser session.
+
+    The login form supplies a password and an optional "next" URL. On successful authentication, the route sets
+    the "authenticated" session flag and redirects the user to the originally requested page.
+
+    A 303 redirect is used after the POST so that the browser performs the destination request as a GET.
+
+    The "next" URL is restricted to an internal relative URL to prevent an open-redirect vulnerability.
+    """    
+    body = await request.body()
+    form = parse_qs(body.decode("utf-8"))
+
+    password = form.get("password", [""])[0]
+    next_url = form.get("next", ["/dashboard"])[0]
+
+    # Only allow internal relative URLs as the post-login destination. This prevents an attacker from 
+    # supplying an external URL through the "next" parameter.    
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = "/dashboard"
+
+    # Validate the supplied password using the authentication helper.
+    # authenticate() performs the actual credential comparison.
+    if not authenticate(password):
+        return RedirectResponse(url=f"/login?error=Invalid+password&next={quote(next_url)}", status_code=303)
+
+    # Mark the browser session as authenticated. SessionMiddleware persists this session information in the signed browser cookie.
+    request.session["authenticated"] = True
+
+    # Return the user to the page they originally requested.
+    return RedirectResponse(url=next_url, status_code=303)
+
+
+@app.get("/logout")
+async def logout(request: Request):
+    """
+    Log the user out by clearing the current browser session.
+
+    After the session is cleared, the user is redirected to the login page. Any subsequently protected route
+    will require authentication again.
+    """    
+    request.session.clear()
+
+    return RedirectResponse(url="/login", status_code=303)
+
+# ------------------------------------------------------------
 # Application routes
 # ------------------------------------------------------------
+# Application routes are protected using the require_login dependency.
+#
+# The dependency checks the authenticated session created by /login. Unauthenticated requests are 
+# redirected to /login and, after successful authentication, returned to the originally requested URL.
+#
+# Public routes are limited to the authentication endpoints above.
+
 def home():
     logger.debug("\n" + "=" * 50 + " Accessed / ")
     return {
@@ -307,7 +411,7 @@ def home():
         "status": "running",
     }
 
-@app.get("/ingest")
+@app.get("/ingest", dependencies=[Depends(require_login)])
 def ingest(request: Request):
     """
     Execute transaction ingestion using the application's validated configuration and return 
@@ -356,7 +460,7 @@ def ingest(request: Request):
         },
     }
 
-@app.get("/refresh_prices")
+@app.get("/refresh_prices", dependencies=[Depends(require_login)])
 def refresh_prices_route(request: Request, return_to: str = "/portfolio", owner: str = "ALL"):
     """
     Refresh current market prices without restarting FinMan.
@@ -368,7 +472,7 @@ def refresh_prices_route(request: Request, return_to: str = "/portfolio", owner:
     # return detail.model_dump(mode="json")
     return RedirectResponse(url=f"{return_to}?owner={owner}")
 
-@app.get("/reingest")
+@app.get("/reingest", dependencies=[Depends(require_login)])
 def reingest(request: Request, return_url: str = "/portfolio"):
     """
     Re-ingest Excel data and refresh all dependent application data
@@ -380,7 +484,7 @@ def reingest(request: Request, return_url: str = "/portfolio"):
 
     return RedirectResponse(url=return_url)
 
-@app.get("/portfolio" )#, response_class=HTMLResponse)
+@app.get("/portfolio", dependencies=[Depends(require_login)])#, response_class=HTMLResponse)
 def portfolio(request: Request, owner: str | None = None):
     logger.debug("\n" + "=" * 50 + f" Accessed /portfolio?owner={owner} ")
     
@@ -442,7 +546,7 @@ def portfolio(request: Request, owner: str | None = None):
     )
     # return view.model_dump(mode="json")
 
-@app.get("/broker" )#, response_class=HTMLResponse)
+@app.get("/broker", dependencies=[Depends(require_login)])#, response_class=HTMLResponse)
 def broker(request: Request, owner: str | None = None):
     logger.debug("\n" + "=" * 50 + f" Accessed /broker?owner={owner} ")
 
@@ -493,8 +597,11 @@ def broker(request: Request, owner: str | None = None):
     )
     # return view.model_dump(mode="json")
 
-@app.get("/holding/{owner}/{asset_type}/{broker}/{security}")
+@app.get("/holding/{owner}/{asset_type}/{broker}/{security}", dependencies=[Depends(require_login)])
 def holding_detail(request: Request, owner: str, asset_type: str, broker: str, security: str, return_url: str = "/portfolio"):  
+    """
+    Display detailed transaction and holding information for one security.
+    """    
     logger.debug("\n" + "=" * 50 + f" Accessed /holding/{owner}/{asset_type}/{broker}/{security}")
 
     detail = build_holding_detail(request.app.state.transactions, security=security, 
@@ -513,7 +620,8 @@ def holding_detail(request: Request, owner: str, asset_type: str, broker: str, s
         },
     )
 
-@app.get("/ai/holding/{owner}/{asset_type}/{broker}/{security:path}", response_class=HTMLResponse)
+@app.get("/ai/holding/{owner}/{asset_type}/{broker}/{security:path}", response_class=HTMLResponse,
+         dependencies=[Depends(require_login)])
 async def ai_holding_page(request: Request, owner: str, asset_type: str, broker: str, 
                           security: str, return_url: str = "/portfolio" ):
     """
@@ -550,7 +658,7 @@ async def ai_holding_page(request: Request, owner: str, asset_type: str, broker:
         },
     )
 
-@app.get("/tax")
+@app.get("/tax", dependencies=[Depends(require_login)])
 def tax(request: Request, owner: str | None = None, fy: str | None = None):
     """
     The /tax route determines the requested FY and Owner.
@@ -643,7 +751,7 @@ def tax(request: Request, owner: str | None = None, fy: str | None = None):
     )
     # return view.model_dump(mode="json")
 
-@app.get("/tax/broker")
+@app.get("/tax/broker", dependencies=[Depends(require_login)])
 def tax_broker(request: Request, owner: str | None = None, fy: str | None = None):
     logger.debug("\n" + "=" * 50 + f" Accessed /tax/broker?owner={owner}&fy={fy}")
 
@@ -724,7 +832,7 @@ def tax_broker(request: Request, owner: str | None = None, fy: str | None = None
     )
     # return view.model_dump(mode="json")
 
-@app.get("/tax/holding/{fy}/{owner}/{asset_type}/{broker}/{security:path}")
+@app.get("/tax/holding/{fy}/{owner}/{asset_type}/{broker}/{security:path}", dependencies=[Depends(require_login)])
 def tax_holding_detail(request: Request, fy: str, owner: str, asset_type: str,
                        broker: str, security: str, return_url: str = "/tax"):
     logger.debug("\n" + "=" * 50 + f" Accessed /tax/holding/" + f"{fy}/{owner}/{asset_type}/{broker}/{security}")
@@ -776,8 +884,8 @@ def tax_holding_detail(request: Request, fy: str, owner: str, asset_type: str,
     #     ],
     # }
 
-@app.get("/")
-@app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/", dependencies=[Depends(require_login)])
+@app.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(require_login)])
 def dashboard(request: Request, owner: str | None = None):
     """
     Render the Portfolio Dashboard.
@@ -1051,7 +1159,7 @@ def _save_settings_section(section, section_data, config):
 
     return load_config(BASE_DIR)
 
-@app.get("/settings", response_class=HTMLResponse)
+@app.get("/settings", response_class=HTMLResponse, dependencies=[Depends(require_login)])
 async def settings(request: Request, return_url: str = "/portfolio", saved: str | None = None, error: str | None = None):
     """
     Display the effective FinMan configuration and allow selected
@@ -1076,7 +1184,7 @@ async def settings(request: Request, return_url: str = "/portfolio", saved: str 
         },
     )
 
-@app.get("/settings/edit/{section}", response_class=HTMLResponse)
+@app.get("/settings/edit/{section}", response_class=HTMLResponse, dependencies=[Depends(require_login)])
 async def settings_edit(request: Request, section: str, return_url: str = "/portfolio"):
     """
     Display the common configuration editor for one editable section.
@@ -1108,7 +1216,7 @@ async def settings_edit(request: Request, section: str, return_url: str = "/port
         },
     )
 
-@app.post("/settings/edit/{section}", response_class=HTMLResponse)
+@app.post("/settings/edit/{section}", response_class=HTMLResponse, dependencies=[Depends(require_login)])
 async def save_settings_edit(request: Request, section: str):
     """
     Save one editable configuration section to the active
@@ -1144,7 +1252,7 @@ async def save_settings_edit(request: Request, section: str):
             url=(f"/settings?return_url={quote(return_url, safe='')}" f"&error={quote(str(exc), safe='')}"), 
             status_code=303)
 
-@app.get("/status", response_class=HTMLResponse)
+@app.get("/status", response_class=HTMLResponse, dependencies=[Depends(require_login)])
 async def status(request: Request, return_url: str = "/portfolio",):
     """
     Render the current application ingestion status for the status page.

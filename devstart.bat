@@ -1,8 +1,10 @@
 REM ------------------------
 REM ENV CONFIG (DEV)
 REM ------------------------
-set DATA_ROOT=Z:\Disk2
 set FINMAN_CONFIG=dev
+
+REM Load local authentication settings
+call env_var.bat
 
 REM Activate virtual environment (your custom script)
 call finman_actv.bat

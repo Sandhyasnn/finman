@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        max-width: none; /* override styles.css max-width */
+        padding: 0;
+        background: var(--bg);
+    }
+
+    .login-box {
+        background: var(--surface);
+        padding: 30px;
+        width: 320px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+
+    h2 {
+        text-align: center;  /* only the centering is extra */
+    }
+
+    label {
+        display: block;
+        margin-top: 15px;
+        margin-bottom: 5px;
+    }
+
+    input {
+        width: 100%;
+        padding: 9px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    button {
+        width: 100%;
+        margin-top: 20px;
+        padding: 10px;
+        border: 0;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+/* Reuse the existing .error class from styles.css and just add layout */
+    .error {
+        margin-bottom: 10px;
+        text-align: center;
+        /* color comes from styles.css (.error { color: var(--error); }) */
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-box">
+    <h2>FinMan</h2>
+
+    
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login">
+        <input type="hidden" name="next" value="{{ next_url }}">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit">Login</button>
+    </form>
+</div>
+{% endblock %}
+

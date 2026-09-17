@@ -11,6 +11,10 @@ cache/
 # Application logs
 logs/
 
+# Local development scripts
+*.bat
+*.env
+
 # ============================================================
 # FINMAN - LOCAL CONFIGURATION / SECRETS
 # ============================================================
