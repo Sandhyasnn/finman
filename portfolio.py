@@ -150,7 +150,9 @@ def build_holdings(transactions: list[Transaction], scope: HoldingScope = "curre
     groups = defaultdict(list)  
 
     for transaction in filtered:
-        key = (transaction.security, transaction.owner, transaction.asset_type, transaction.asset_subtype,transaction.broker)
+        # Holding identity = security + owner + asset_type + broker.
+        # asset_subtype is descriptive and must not split a Holding.        
+        key = (transaction.security, transaction.owner, transaction.asset_type,transaction.broker)
         groups[key].append(transaction)
 
     holdings = []
