@@ -1,0 +1,414 @@
+FINMAN - HTTPS & ANDROID PWA SETUP
+======================================
+PWA:Progressive Web App
+
+FINAL URL
+---------
+Use this for normal FinMan access on devices on your home/LAN network:
+    https://192.168.1.240
+
+The old URL may continue to work:
+    http://192.168.1.240:5000
+
+but the PWA should use HTTPS.
+
+ARCHITECTURE
+------------
+Phone / PC
+    |
+    | HTTPS :443
+    v
+  Nginx
+    |
+    | HTTP :5000
+    v
+FinMan FastAPI / Uvicorn
+
+FinMan container:
+    Hostname : finman
+    IP       : 192.168.1.240
+    App port : 5000
+    HTTPS    : 443
+
+
+1. INSTALL NGINX
+----------------
+Run on the FinMan Debian container:
+    apt update
+    apt install nginx -y
+
+Check:
+    systemctl status nginx
+
+Expected: Active: active (running)
+
+
+2. CREATE THE LOCAL HTTPS CERTIFICATE
+-------------------------------------
+Create the SSL directory:
+    mkdir -p /etc/nginx/ssl
+
+Create the certificate:
+    openssl req -x509 -nodes -days 825 \
+      -newkey rsa:2048 \
+      -keyout /etc/nginx/ssl/finman.key \
+      -out /etc/nginx/ssl/finman.crt \
+      -subj "/CN=192.168.1.240" \
+      -addext "subjectAltName=IP:192.168.1.240"
+
+Check:
+    ls -l /etc/nginx/ssl/
+
+Expected:
+    finman.crt
+    finman.key
+
+IMPORTANT:
+- finman.crt is the certificate.
+- finman.key is the private key.
+- NEVER copy/share finman.key.
+- Keep finman.key on the FinMan server.
+
+
+3. CONFIGURE NGINX
+------------------
+Create:
+    nano /etc/nginx/sites-available/finman
+
+Use:
+    server {
+        listen 443 ssl;
+        server_name 192.168.1.240;
+
+        ssl_certificate /etc/nginx/ssl/finman.crt;
+        ssl_certificate_key /etc/nginx/ssl/finman.key;
+
+        location / {
+            proxy_pass http://127.0.0.1:5000;
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+Enable:
+    ln -s /etc/nginx/sites-available/finman /etc/nginx/sites-enabled/finman
+
+If the default Nginx site is present:
+    rm /etc/nginx/sites-enabled/default
+
+Test:
+    nginx -t
+
+Expected:
+    syntax is ok
+    test is successful
+
+Reload:
+    systemctl reload nginx
+
+4. REDIRECT HTTP TO HTTPS
+-------------------------
+To make sure users who accidentally enter the HTTP URL are automatically redirected to the secure HTTPS version, 
+add an HTTP redirect server block before the existing HTTPS server block.
+
+Edit:
+    nano /etc/nginx/sites-available/finman
+
+Add:
+    server {
+        listen 80;
+        server_name 192.168.1.240;
+
+        return 301 https://192.168.1.240$request_uri;
+    }
+
+The complete configuration should have the HTTP redirect first, followed by the existing HTTPS server block.
+
+Test the configuration:
+    nginx -t
+
+Expected:
+    syntax is ok
+    test is successful
+
+Reload Nginx:
+    systemctl reload nginx
+
+Test by opening:
+    http://192.168.1.240
+
+It should automatically redirect to:
+    https://192.168.1.240
+
+NOTE: This redirects only normal HTTP traffic on port 80.
+
+The direct FastAPI URL:
+    http://192.168.1.240:5000
+
+continues to work separately and is not affected by this redirect.
+For normal FinMan use, use:
+    https://192.168.1.240
+
+
+5. VERIFY HTTPS
+---------------
+Check:
+    ss -tlnp | grep -E ':443|:5000'
+
+Expected to see:
+    0.0.0.0:443   nginx
+    0.0.0.0:5000  uvicorn
+
+Optional local test:
+    curl -k https://192.168.1.240
+
+A response such as {"detail":"See Other"} confirms that HTTPS/Nginx reaches FinMan.
+
+IMPORTANT:
+Use:
+    https://192.168.1.240
+
+NOT:
+    http://192.168.1.240
+    http://192.168.1.240:5000
+
+
+6. ADD THE PWA MANIFEST
+----------------------
+FinMan static files are under:
+    /srv/finman/static/
+
+Create:
+    /srv/finman/static/manifest.json
+
+Contents:
+    {
+        "name": "FinMan",
+        "short_name": "FinMan",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#0b6670",
+        "icons": [
+            {
+                "src": "/static/icons/finman-192.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any maskable"
+            },
+            {
+                "src": "/static/icons/finman-512.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+            }
+        ]
+    }
+
+Create:
+    mkdir -p /srv/finman/static/icons
+
+Required files:
+    /srv/finman/static/icons/finman-192.png
+    /srv/finman/static/icons/finman-512.png
+
+
+7. UPDATE base.html
+-------------------
+In the <head> section add:
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#0b6670">
+
+Keep the existing CSS and other base.html content.
+
+
+78 MAKE THE CERTIFICATE AVAILABLE TO DEVICES
+---------------------------------------------
+The certificate is:
+    /etc/nginx/ssl/finman.crt
+
+It can be copied to the FinMan Samba/source directory:
+    cp /etc/nginx/ssl/finman.crt /srv/finman/
+
+Then it can be copied to OneDrive or another convenient location.
+
+IMPORTANT:
+Only copy:
+    finman.crt
+
+Never copy:
+    finman.key
+
+
+9. TRUST THE CERTIFICATE ON EACH DEVICE
+---------------------------------------
+Each device must trust finman.crt because this is a private/self-signed
+certificate.
+
+ANDROID:
+1. Download finman.crt to the phone.
+2. Open Android Settings.
+3. Search for "Install certificate".
+4. Choose the option to install a CA certificate.
+5. Select finman.crt.
+6. Authenticate if requested.
+7. Test:
+       https://192.168.1.240
+
+WINDOWS:
+1. Copy/download finman.crt to the PC.
+2. Double-click the certificate.
+3. Select "Install Certificate".
+4. Choose "Local Machine".
+5. Choose "Place all certificates in the following store".
+6. Select "Trusted Root Certification Authorities".
+7. Complete the import.
+8. Restart Chrome if necessary.
+9. Test:
+       https://192.168.1.240
+
+
+10. INSTALL FINMAN AS AN ANDROID APP
+-----------------------------------
+On Android, after the certificate is trusted:
+
+1. Open Chrome.
+2. Go to:
+       https://192.168.1.240
+
+3. Tap the three-dot menu.
+4. Choose "Install and create shortcut".
+5. Choose "Install".
+
+FinMan should appear on the home screen with the FinMan ₹ icon.
+
+Because the manifest uses:
+    "display": "standalone"
+
+the installed app should open without the normal Chrome address bar.
+
+
+11. DO I HAVE TO REPEAT THIS EVERY TIME?
+-----------------------------------------
+NO.
+
+The setup is normally a ONE-TIME operation per device.
+
+After a device has:
+1. Trusted finman.crt, and
+2. Installed the FinMan PWA,
+
+you simply use FinMan normally.
+
+ANDROID:
+Tap the FinMan icon on the home screen.
+
+DESKTOP:
+Open:
+    https://192.168.1.240
+
+For a NEW device:
+- Trust/install finman.crt once.
+- Install the FinMan PWA once if desired.
+
+You do NOT repeat the certificate installation or PWA installation every time
+you access FinMan.
+
+
+12. CERTIFICATE MAINTENANCE
+---------------------------
+The certificate was created with:
+    -days 825
+
+It will eventually expire.
+
+When it is renewed/recreated, the new finman.crt must be trusted again on
+devices. Nginx should also be reloaded after replacing the certificate.
+
+Do not delete the working certificate/key unless a replacement is ready.
+
+
+13. TROUBLESHOOTING
+-------------------
+A. "Welcome to nginx" at https://192.168.1.240
+   Remove the default Nginx site:
+
+       rm /etc/nginx/sites-enabled/default
+       nginx -t
+       systemctl reload nginx
+
+B. Certificate warning
+   Install/trust finman.crt on that device.
+
+C. Site cannot be reached
+   First check the exact URL:
+
+       https://192.168.1.240
+
+   Make sure the device is on the same home/LAN network.
+
+D. FinMan works at :5000 but not HTTPS
+   Check:
+
+       ss -tlnp | grep -E ':443|:5000'
+
+   Expected:
+
+       0.0.0.0:443   nginx
+       0.0.0.0:5000  uvicorn
+
+   Then:
+
+       nginx -t
+
+E. Chrome offers "Create shortcut" but Install fails
+   Check that:
+   - HTTPS is being used.
+   - The manifest exists at:
+
+         https://192.168.1.240/static/manifest.json
+
+   - The icon files exist.
+   - finman.crt is trusted on the device.
+
+
+FINMAN PWA ASSETS
+-----------------
+The PWA package contains:
+
+    static/manifest.json
+    static/icons/finman-192.png
+    static/icons/finman-512.png
+
+The icon is the approved FinMan design with the ₹ symbol.
+
+
+QUICK REFERENCE
+---------------
+Normal FinMan URL:
+
+    https://192.168.1.240
+
+Old direct FastAPI URL:
+
+    http://192.168.1.240:5000
+
+Nginx HTTPS:
+    :443
+
+FinMan/Uvicorn:
+    :5000
+
+Certificate:
+    /etc/nginx/ssl/finman.crt
+
+Private key:
+    /etc/nginx/ssl/finman.key
+
+PWA manifest:
+    /srv/finman/static/manifest.json
+
+    
