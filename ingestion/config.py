@@ -76,6 +76,7 @@ class TemplateNamesConfig(BaseModel):
     tax_broker_template: str
     tax_holding_template: str
     settings_template: str
+    settings_editor_template: str
     research_template: str
     dashboard_template: str
 

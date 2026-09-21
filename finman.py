@@ -33,7 +33,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from auth import authenticate, get_auth_config, require_login
 
 from logger import configure_logger, logger
-from ingestion.config import load_config, FinManConfig, get_config_environment
+from ingestion.config import load_config, get_config_environment
 from ingestion.transactions import ingest_transactions
 from market.prices import refresh_prices
 from market.external_links import configure_external_links
@@ -56,6 +56,18 @@ from tax import (
 )
 from ingestion.models import PortfolioView, BrokerView, TaxView
 from ai.service import explain_holding, check_ai_health
+
+from settings import (
+    get_settings_file,
+    read_settings_file, 
+    get_settings_navigation,
+    get_settings_section,
+    mask_secrets,
+    SETTINGS_FILES,
+    save_settings_section,
+    format_settings_for_display
+)
+
 
 from debug import router as debug_router
 
@@ -335,7 +347,7 @@ async def login_page(request: Request):
 
     return templates.TemplateResponse(
         request,
-        "login.html",
+        request.app.state.config.template_names.login_template,
         {
             "request": request,
             "error": error,
@@ -376,7 +388,6 @@ async def login(request: Request):
 
     # Return the user to the page they originally requested.
     return RedirectResponse(url=next_url, status_code=303)
-
 
 @app.get("/logout")
 async def logout(request: Request):
@@ -533,7 +544,7 @@ def portfolio(request: Request, owner: str | None = None):
 
     return templates.TemplateResponse(
         request,
-        app.state.config.template_names.portfolio_template,
+        request.app.state.config.template_names.portfolio_template,
         {
             "view": view,
             "owners": owners,
@@ -586,7 +597,7 @@ def broker(request: Request, owner: str | None = None):
 
     return templates.TemplateResponse(
         request,
-        app.state.config.template_names.broker_template,
+        request.app.state.config.template_names.broker_template,
         {
             "view": view,
             "owners": owners,
@@ -612,7 +623,7 @@ def holding_detail(request: Request, owner: str, asset_type: str, broker: str, s
 
     return templates.TemplateResponse(
         request,
-        app.state.config.template_names.holdings_template,
+        request.app.state.config.template_names.holdings_template,
         {
             "detail": detail,
             "return_url": return_url,
@@ -649,7 +660,7 @@ async def ai_holding_page(request: Request, owner: str, asset_type: str, broker:
 
     return templates.TemplateResponse(
         request,
-        config.template_names.ai_explain_template,
+        request.config.template_names.ai_explain_template,
         {
             "detail": detail,
             "return_url": return_url,
@@ -740,7 +751,7 @@ def tax(request: Request, owner: str | None = None, fy: str | None = None):
 
     return templates.TemplateResponse(
         request,
-        app.state.config.template_names.tax_template,
+        request.app.state.config.template_names.tax_template,
         {
             "view": view,
             "owners": owners,
@@ -821,7 +832,7 @@ def tax_broker(request: Request, owner: str | None = None, fy: str | None = None
 
     return templates.TemplateResponse(
         request,
-        app.state.config.template_names.tax_broker_template,
+        request.app.state.config.template_names.tax_broker_template,
         {
             "view": view,
             "owners": owners,
@@ -845,7 +856,7 @@ def tax_holding_detail(request: Request, fy: str, owner: str, asset_type: str,
 
     return templates.TemplateResponse(
         request,
-        app.state.config.template_names.tax_holding_template,
+        request.app.state.config.template_names.tax_holding_template,
         {
             "view": TaxView(
                 fy=fy,
@@ -1011,7 +1022,7 @@ def dashboard(request: Request, owner: str | None = None):
     # ------------------------------------------------------------
     return templates.TemplateResponse(
         request,
-        app.state.config.template_names.dashboard_template,
+        request.app.state.config.template_names.dashboard_template,
         {
             "owners": owners,
             "selected_owner": owner,
@@ -1020,238 +1031,124 @@ def dashboard(request: Request, owner: str | None = None):
         },
     )
 
-# ------------------------------------------------------------
-# Settings helpers
-# ------------------------------------------------------------
-SETTINGS_SECTIONS = {"frontend", "ai", "external_links"}
-MASKED_KEYWORDS = {"api_key", "password", "secret"}
-MASKED_VALUE = "********"
-EDITABLE_SECTIONS = [
-    {
-        "name": "frontend",
-        "title": "Frontend",
-        "description": "Owner and asset-type selections used by the application.",
-    },
-    {
-        "name": "ai",
-        "title": "AI",
-        "description": "AI enablement, providers, models and provider settings.",
-    },
-    {
-        "name": "external_links",
-        "title": "External Links",
-        "description": "External research links and their URL templates.",
-    },
-]
-
-MASKED_VALUE = "********"
-
-def _settings_config_file():
-    return BASE_DIR / "config.json"
-
-def _mask_secrets(value):
-    if isinstance(value, dict):
-        return {
-            key: (
-                MASKED_VALUE
-                if key in MASKED_KEYWORDS
-                else _mask_secrets(item)
-            )
-            for key, item in value.items()
-        }
-
-    if isinstance(value, list):
-        return [_mask_secrets(item) for item in value]
-
-    return value
-
-def _format_config_json(data):
-    """Format config JSON compactly where values are small and simple."""
-    COMPACT_MAX_LENGTH = 100  # If a nested structure can fit in approximately 100 characters, keep it on one line.
-
-    # Return FALSE if it is a dictionary or list i.e what we call a scalar
-    # "Ticker" → True, ["RSN"] → False, {"a": "b"} → False
-    def is_scalar(value):
-        return not isinstance(value, (dict, list))
-
-    # Wrapper around Python's existing JSON encoder. Add space between mentioned seperators
-    # between items: , between key and value: : + space
-    # ensure_ascii=False, asks python not to represent Unicode characters using escaped sequences.
-    def compact_json(value):
-        return json.dumps(value, ensure_ascii=False, separators=(",", ": "))
-
-    # Checks if I wrote this entire thing on one line, would it still be reasonably short?
-    # level is the depth of indentation (starting at 0)
-    def should_compact(value, level):
-        # Never compact the root object.
-        if level == 0:
-            return False
-        # Scalars are naturally compact.
-        if is_scalar(value):
-            return True
-        # Try the entire object/list in compact form.
-        compact = compact_json(value)
-        # Keep short structures on one line.
-        return len(compact) <= COMPACT_MAX_LENGTH
-
-    def format_value(value, level=0):
-        indent = "  " * level  # Indentation for the current level increases with level number
-        next_indent = "  " * (level + 1)  # Indentation for the next level is +1 to the previous level
-        # Scalars
-        if is_scalar(value):
-            return json.dumps(value, ensure_ascii=False)
-        # Compact small dictionaries/lists
-        if should_compact(value, level):
-            return compact_json(value)
-        # Lists
-        if isinstance(value, list):
-            if not value:
-                return "[]"
-            lines = ["["]
-            for i, item in enumerate(value):
-                formatted = format_value(item, level + 1)
-                lines.append(f"{next_indent}{formatted}" + ("," if i < len(value) - 1 else ""))
-            lines.append(f"{indent}]")
-            return "\n".join(lines)
-        # Dictionaries
-        lines = ["{"]
-        items = list(value.items())
-        for i, (key, val) in enumerate(items):
-            formatted = format_value(val, level + 1)
-            lines.append(
-                f'{next_indent}{json.dumps(key, ensure_ascii=False)}: '
-                f'{formatted}' + ("," if i < len(items) - 1 else "") )
-        lines.append(f"{indent}}}") # Attach the final } for the dictionary
-        return "\n".join(lines) # Convert the list to a string with newlines between each line froming the dictionary
-
-    return format_value(data)
-
-def _save_settings_section(section, section_data, config):
-    if section not in SETTINGS_SECTIONS:
-        raise ValueError("This configuration section cannot be edited.")
-
-    # Preserve existing secrets when the masked value is submitted.
-    if section == "ai":
-        current_ai = config.ai.model_dump(mode="json")
-
-        for provider_name, provider_data in section_data.get("providers", {}).items():
-            current_provider = current_ai.get("providers", {}).get(provider_name, {})
-            if provider_data.get("api_key") == MASKED_VALUE:
-                if "api_key" in current_provider:
-                    provider_data["api_key"] = current_provider["api_key"]
-
-    # Validate the complete proposed effective configuration before saving.
-    proposed_config = config.model_dump(mode="json", by_alias=True) # Use field aliases so config JSON keys such as "and" are preserved.
-    proposed_config[section] = section_data
-    FinManConfig.model_validate(proposed_config)
-
-    config_file = _settings_config_file()
-
-    override_config = read_json(config_file, default={})
-
-    override_config[section] = section_data
-
-    temp_file = config_file.with_suffix(".tmp")
-
-    temp_file.write_text(_format_config_json(override_config) + "\n", encoding="utf-8")
-
-    temp_file.replace(config_file)
-
-    return load_config(BASE_DIR)
-
 @app.get("/settings", response_class=HTMLResponse, dependencies=[Depends(require_login)])
-async def settings(request: Request, return_url: str = "/portfolio", saved: str | None = None, error: str | None = None):
-    """
-    Display the effective FinMan configuration and allow selected
-    configuration sections to be edited.
-    """
+async def settings(request: Request, file: str = "config", section: str | None = None,
+                   return_url: str = "/portfolio", saved: str | None = None, error: str | None = None):
+    """Display a selected JSON settings file and section."""
     logger.debug("\n" + "=" * 50 + " Accessed /settings")
 
-    config = request.app.state.config
-    effective_config = config.model_dump(mode="json")
+    settings_file = get_settings_file(file)
+
+    data = read_settings_file(file)
+
+    navigation = get_settings_navigation(data)
+
+    # Select the first top-level section if none was requested.
+    if section is None and navigation:
+        section = navigation[0]["key"]
+
+    section_data = get_settings_section(data, section) if section else data
+    section_display = format_settings_for_display(mask_secrets(section_data))
+
+    editable = bool(section and section in settings_file["editable"])
 
     return templates.TemplateResponse(
         request,
-        config.template_names.settings_template,
+        request.app.state.config.template_names.settings_template,
         {
-            "config": _mask_secrets(effective_config),
+            "settings_files": SETTINGS_FILES,
+            "selected_file": file,
+            "selected_file_title": settings_file["title"],
+            "navigation": navigation,
+            "selected_section": section,
+            "section_data": section_display,
+            "section_editable": editable,
             "environment": get_config_environment(),
-            "override_file": _settings_config_file().name,
+            "override_file": settings_file["title"],
             "return_url": return_url,
             "saved": saved,
             "error": error,
-            "editable_sections": EDITABLE_SECTIONS,            
         },
     )
 
-@app.get("/settings/edit/{section}", response_class=HTMLResponse, dependencies=[Depends(require_login)])
-async def settings_edit(request: Request, section: str, return_url: str = "/portfolio"):
-    """
-    Display the common configuration editor for one editable section.
-    """
-    logger.debug("\n" + "=" * 50 + f" Accessed /settings/edit/{section}")
+@app.get("/settings/edit/{file}/{section:path}", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+async def settings_edit(request: Request, file: str, section: str, return_url: str = "/settings"):
+    """Display the generic JSON editor for one editable section."""
+    logger.debug("\n" + "=" * 50 + f" Accessed /settings/edit/{file}/{section}")
 
-    if section not in SETTINGS_SECTIONS:
-        raise HTTPException(status_code=404, detail="Configuration section not found.")
+    settings_file = get_settings_file(file)
 
-    config = request.app.state.config
+    if section not in settings_file["editable"]:
+        raise HTTPException(status_code=403, detail="This settings section is read-only.",)
 
-    section_info = next(
-        item for item in EDITABLE_SECTIONS
-        if item["name"] == section
-    )
+    data = read_settings_file(file)
 
-    section_data = getattr(config, section).model_dump(mode="json")
-    section_data = _mask_secrets(section_data)
+    section_data = get_settings_section(data, section)
 
     return templates.TemplateResponse(
         request,
-        "settings_editor.html",
+        request.app.state.config.template_names.settings_editor_template,
         {
+            "file": file,
+            "file_title": settings_file["title"],
             "section": section,
-            "section_title": section_info["title"],
-            "section_description": section_info["description"],
-            "section_data": section_data,
+            "section_title": section.split(".")[-1].replace("_", " ").title(),
+            "section_description": f"Edit {section}.",
+            "section_data": mask_secrets(section_data),
             "return_url": return_url,
         },
     )
 
-@app.post("/settings/edit/{section}", response_class=HTMLResponse, dependencies=[Depends(require_login)])
-async def save_settings_edit(request: Request, section: str):
-    """
-    Save one editable configuration section to the active
-    environment-specific configuration file.
-    """
-    logger.debug("\n" + "=" * 50 + f" Saving /settings/edit/{section}")
+@app.post("/settings/edit/{file}/{section:path}", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+async def save_settings_edit(request: Request, file: str, section: str):
+    """Save one editable section of a JSON settings file."""
+    logger.debug("\n" + "=" * 50 + f" Saving /settings/edit/{file}/{section}")
 
+    # The raw text from the ofrm is recevied and parsed into a string
     body = await request.body()
-    form = parse_qs(body.decode("utf-8"))
-
-    content = form.get("content", [""])[0]
-    return_url = form.get("return_url", ["/portfolio"])[0]
+    form = parse_qs(body.decode("utf-8")) # body.decode turns the bytes into text and parse converts it to dict like structure
+ 
+    content = form.get("content", [""])[0]  # extracts the JSON text from the form content. content is still a string here
+    return_url = form.get("return_url", ["/settings"])[0]
 
     try:
-        if section not in SETTINGS_SECTIONS:
-            raise ValueError("Invalid configuration section.")
-
-        section_data = json.loads(content)
+        section_data = json.loads(content)   # converts a json text to python dictionart
 
         if not isinstance(section_data, dict):
             raise ValueError("Configuration section must contain a JSON object.")
 
-        request.app.state.config = _save_settings_section(section, section_data, request.app.state.config)
-        configure_external_links(request.app.state.config.model_dump())  # Do this explicitly since this is done within the normal startup lifecycle.
+        request.app.state.config = save_settings_section(file, section, section_data, request.app.state.config)
 
-        return RedirectResponse(url=(f"/settings?return_url={quote(return_url, safe='')}" f"&saved={quote(section, safe='')}"), 
-                                status_code=303)
+        # Only config files affect the live FinMan configuration.
+        if file in {"config", "config_dev", "config_prod"}:
+            configure_external_links(request.app.state.config.model_dump())
+
+        return RedirectResponse(
+            url=(
+                f"/settings?"
+                f"file={quote(file, safe='')}"
+                f"&section={quote(section, safe='')}"
+                f"&return_url={quote(return_url, safe='')}"
+                f"&saved={quote(section, safe='')}"
+            ),
+            status_code=303,
+        )
 
     except (json.JSONDecodeError, ValueError, TypeError) as exc:
+
         logger.exception("Failed to save settings")
 
         return RedirectResponse(
-            url=(f"/settings?return_url={quote(return_url, safe='')}" f"&error={quote(str(exc), safe='')}"), 
-            status_code=303)
-
+            url=(
+                f"/settings?"
+                f"file={quote(file, safe='')}"
+                f"&section={quote(section, safe='')}"
+                f"&return_url={quote(return_url, safe='')}"
+                f"&error={quote(str(exc), safe='')}"
+            ),
+            status_code=303,
+        )
+    
 @app.get("/status", response_class=HTMLResponse, dependencies=[Depends(require_login)])
 async def status(request: Request, return_url: str = "/portfolio",):
     """
@@ -1269,7 +1166,7 @@ async def status(request: Request, return_url: str = "/portfolio",):
 
     return templates.TemplateResponse(
         request,
-        app.state.config.template_names.status_template,
+        request.app.state.config.template_names.status_template,
         {
             "status": ingestion_status,
             "tax_status": tax_ingestion_status,

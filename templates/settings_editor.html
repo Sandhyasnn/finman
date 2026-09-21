@@ -1,7 +1,17 @@
 {% extends "base.html" %}
 
+{#
+    Recursive editor for a configuration section.
+
+    Jinja walks the configuration tree and creates the appropriate
+    HTML control for each value: checkbox, number, text, select, etc.
+
+    "path" records where the value belongs in the configuration.
+    The JavaScript uses this path when rebuilding the configuration after the user clicks Save.
+#}
 {% macro render_value(value, path, label, parent=None) %}
     {% if value is mapping %}
+        {# Dictionaries are containers, so recursively render each child. #}
         <div class="editor-group">
             {% if path %}<h3>{{ label }}</h3>{% endif %}
             {% for key, child in value.items() %}
@@ -10,7 +20,60 @@
         </div>
 
     {% elif value is sequence and value is not string %}
-        {% if label == 'Default Providers' and parent is mapping and parent.providers is defined %}
+        {# AI questions are structured objects, so give each question and
+           instruction its own editable field rather than one single list textbox. #}
+        {% if path == ['analysis', 'questions'] %}
+            <div class="editor-group">
+                <h3>{{ label }}</h3>
+                {% for question_item in value %}
+                    <div class="editor-subgroup">
+                        <h4>{{ question_item.question
+                               if question_item.question is defined
+                               else question_item.id }}
+                        </h4>
+
+                        {# ID is intentionally not editable #}
+                        <input type="hidden" value="{{ question_item.id }}"
+                               data-editor-path='{{ (path + [loop.index0, "id"]) | tojson }}'
+                               data-editor-kind="string">
+
+                        <div class="editor-field">
+                            <label>Question:</label>
+                            <input type="text" value="{{ question_item.question }}"
+                                   data-editor-path='{{ (path + [loop.index0, "question"]) | tojson }}'
+                                   data-editor-kind="string">
+                        </div>
+
+                        <div class="editor-field">
+                            <label>Instruction:</label>
+                            <textarea
+                                rows="5"
+                                data-editor-path='{{ (path + [loop.index0, "instruction"]) | tojson }}'
+                                data-editor-kind="string">{{ question_item.instruction }}</textarea>
+                        </div>
+
+                    </div>
+                {% endfor %}
+            </div>
+
+        {# AI rules are long text values, so edit each rule in its own textarea. #}
+        {% elif path == ['analysis', 'rules'] %}
+            <div class="editor-group">
+                <h3>{{ label }}</h3>
+
+                {% for rule in value %}
+                    <div class="editor-field">
+                        <label>Rule {{ loop.index }}:</label>
+                        <textarea
+                            rows="3"
+                            data-editor-path='{{ (path + [loop.index0]) | tojson }}'
+                            data-editor-kind="string">{{ rule }}</textarea>
+                    </div>
+                {% endfor %}
+            </div>
+
+        {# Other lists use a simple comma-separated text field. #}
+        {% elif label == 'Default Providers' and parent is mapping and parent.providers is defined %}
             <div class="editor-field">
                 <label>{{ label }}:</label>
                 <select multiple
@@ -25,6 +88,7 @@
                     {% endfor %}
                 </select>
             </div>
+
         {% else %}
             <div class="editor-field">
                 <label>{{ label }}:</label>
@@ -100,7 +164,7 @@
     <link rel="stylesheet" href="/static/settings.css">
 {% endblock %}
 
-{% block title %}Edit {{ section_title }}{% endblock %}
+{% block title %}Edit {{ section_title }} — {{ file_title }}{% endblock %}
 
 {% block content %}
 
@@ -110,7 +174,7 @@
         <h1>Edit {{ section_title }}</h1>
         <p class="settings-subtitle">{{ section_description }}</p>
     </div>
-    <div><a href="/settings?return_url={{ return_url | urlencode }}">← Settings</a></div>
+    <a href="/settings?file={{ file }}&section={{ section | urlencode }}">← Settings</a>
 </header>
 
 {% if section == 'ai' %}
@@ -120,7 +184,14 @@
 </section>
 {% endif %}
 
-<form id="settings-editor-form" method="post" action="/settings/edit/{{ section }}">
+
+{#
+    The visible controls are generated above by render_value().
+    The hidden "content" field below is populated by JavaScript with
+    the complete edited configuration before the form is submitted.
+#}
+<form id="settings-editor-form"
+<form id="settings-editor-form" method="post" action="/settings/edit/{{ file }}/{{ section }}">
     <input type="hidden" name="content" id="settings-content">
     <input type="hidden" name="return_url" value="{{ return_url }}">
 
@@ -129,19 +200,32 @@
     </section>
 
     <div class="editor-actions">
-        <a class="settings-cancel-button" href="/settings?return_url={{ return_url | urlencode }}">Cancel</a>
+        <a class="settings-cancel-button" href="/settings?file={{ file }}&section={{ section | urlencode }}">
         <button type="submit">Save {{ section_title }}</button>
     </div>
 </form>
 
 <script>
+/*
+    Save workflow:
+
+    1. Read every editor control from the page.
+    2. Use data-editor-path to determine where its value belongs.
+    3. Use data-editor-kind to restore the correct data type.
+    4. Rebuild the complete configuration in "result".
+    5. Convert it to JSON and place it in the hidden "content" field.
+    6. Submit the form to the FastAPI settings route.
+*/
 (function () {
     const form = document.getElementById("settings-editor-form");
     const output = document.getElementById("settings-content");
 
+    // Convert HTML field values back to the correct configuration type. Particular for numbers and nulls
     function convert(value, kind) {
         if (kind === "number") {
             const number = Number(value);
+            // If the user enter a non number this will throw an error. We have controlled this by
+            // forcing the user to only enter number using input type="number"
             if (Number.isNaN(number)) throw new Error("A numeric field contains an invalid value.");
             return number;
         }
@@ -149,6 +233,14 @@
         return value;
     }
 
+    /*
+        Put one edited value into the configuration object using its path.
+        Example:
+            ["analysis", "questions", 0, "instruction"]
+        means:
+            result.analysis.questions[0].instruction = value
+        Missing dictionaries/lists are created as the path is walked.
+    */
     function setValue(root, path, value) {
         let current = root;
         for (let i = 0; i < path.length - 1; i++) {
@@ -164,10 +256,12 @@
     }
 
     form.addEventListener("submit", function (event) {
+        // Build the complete configuration from the current editor controls.
         event.preventDefault();
         try {
             const result = {};
 
+            // Every editable control carries its configuration path and data type.
             document.querySelectorAll("[data-editor-path]").forEach(function (element) {
                 const path = JSON.parse(element.dataset.editorPath);
                 const kind = element.dataset.editorKind;
@@ -191,6 +285,7 @@
                 setValue(result, path, value);
             });
 
+            // Send the rebuilt configuration to FastAPI through the hidden form field.
             output.value = JSON.stringify(result);
             form.submit();
         } catch (error) {

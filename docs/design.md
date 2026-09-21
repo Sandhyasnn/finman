@@ -152,6 +152,7 @@ PortfolioView / BrokerView
        ▼
       HTML
 
+
 BIG PICTURE of the TAX VIEWS Computation
 =============================================
 
@@ -192,6 +193,60 @@ Tax transactions
        └──→ _build_tax_summary()
                  ↓
            LT / ST totals
+
+
+
+Settings System
+==================================================
+There are 3 layers:
+
+                    BROWSER
+                       │
+                       ▼
+              ┌─────────────────┐
+              │    finman.py    │
+              │                 │
+              │ HTTP routes     │
+              │ request/response│
+              └────────┬────────┘
+                       │
+                       ▼
+              ┌─────────────────┐
+              │   settings.py   │
+              │                 │
+              │ Settings logic  │
+              │ JSON handling   │
+              │ validation      │
+              │ masking         │
+              └────────┬────────┘
+                       │
+             ┌─────────┴─────────┐
+             ▼                   ▼
+       JSON files          Pydantic Config
+ config.json etc.       FinManConfig / app.state
+
+ and then the HTML sits alongside:
+
+ finman.py
+   │
+   ├── /settings
+   │       │
+   │       └── settings.html
+   │
+   ├── /settings/edit/...
+   │       │
+   │       └── settings_editor.html
+   │
+   └── /settings/edit/... POST
+
+
+SETTINGS_FILES
+==============
+SETTINGS_FILES is the heart of the design. This abstracts the files to be managed (config.json, config_dev, etc)
+Additionally it also abstracts what sections are editable, if the file necessaites a config validtion and 
+if a config reload is needed.
+The constants:
+SETTINGS_EXPAND_KEYS - controls the navigation
 
 
 Formatting the config.json back after saving
@@ -235,4 +290,154 @@ Write }
   |
   v
 Return formatted text
+
+
+The entire SAVE process in one picture (settings -> save)
+============================================================
+USER
+ │
+ │ clicks Edit
+ ▼
+GET /settings/edit/config/frontend
+ │
+ ▼
+settings_edit()
+ │
+ ├── get_settings_file()
+ ├── read_settings_file()
+ ├── get_settings_section()
+ ├── mask_secrets()
+ │
+ ▼
+settings_editor.html
+ │
+ │ user changes JSON
+ │
+ │ clicks Save
+ ▼
+POST /settings/edit/config/frontend
+ │
+ ▼
+save_settings_edit()
+ │
+ ├── read HTTP body
+ ├── parse form
+ ├── json.loads()
+ │
+ ▼
+section_data
+ │
+ ▼
+save_settings_section()
+ │
+ ├── check editable
+ │
+ ├── current config
+ │       │
+ │       ▼
+ │   model_dump()
+ │       │
+ │       ▼
+ │   proposed_config
+ │       │
+ │       ├── replace edited section
+ │       │
+ │       ▼
+ │   FinManConfig.model_validate()
+ │
+ ├── read physical JSON file
+ │
+ ├── replace section
+ │
+ ├── write config.tmp
+ │
+ ├── replace config.json
+ │
+ └── load_config()
+          │
+          ▼
+   NEW FinManConfig
+          │
+          ▼
+request.app.state.config
+          │
+          ▼
+configure_external_links()
+          │
+          ▼
+      303 redirect
+          │
+          ▼
+GET /settings
+
+
+Understading the settings_editor.html file
+============================================
+                    CONFIG FILE
+                         │
+                         ▼
+                  Python reads it
+                         │
+                         ▼
+                   section_data
+                         │
+                         ▼
+               settings_editor.html
+                         │
+                         ▼
+                 render_value()
+                         │
+                Jinja creates HTML
+                         │
+                         ▼
+                    BROWSER
+                         │
+              User edits fields
+                         │
+                         ▼
+                 Clicks Save
+                         │
+                         ▼
+                  JavaScript
+                         │
+               reads every field
+                         │
+                         ▼
+                data-editor-path
+                tells it WHERE
+                         │
+                         +
+                data-editor-kind
+                tells it WHAT TYPE
+                         │
+                         ▼
+                    setValue()
+                         │
+                         ▼
+                  result = {...}
+                         │
+                         ▼
+                JSON.stringify()
+                         │
+                         ▼
+                hidden "content"
+                         │
+                         ▼
+                  form.submit()
+                         │
+                         ▼
+                    Python POST
+                         │
+                         ▼
+                 json.loads()
+                         │
+                         ▼
+                  section_data
+                         │
+                         ▼
+              save_settings_section()
+                         │
+                         ▼
+                    JSON file
+
 
