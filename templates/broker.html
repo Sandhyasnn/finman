@@ -61,7 +61,7 @@
                                     {% if request.app.state.config.ai.enabled %}
                                         •
                                         <a href="/ai/holding/{{ holding.owner }}/{{ holding.asset_type }}/{{ holding.broker }}/{{ holding.security }}?return_url={{ (view_url ~ '?owner=' ~ view.owner) | urlencode }}"
-                                        title="AI analysis">
+                                        title="AI analysis" onclick="return showLoadingAndNavigate(this, '🤖 Thinking…');">
                                          ✨AI
                                         </a>
                                     {% endif %}                                

@@ -22,7 +22,7 @@
     <h1>{{ detail.security }} - {{ detail.owner }} 
         {% if request.app.state.config.ai.enabled %}
             <a href="/ai/holding/{{ detail.owner }}/{{ detail.asset_type }}/{{ detail.broker }}/{{ detail.security }}?return_url={{ return_url | urlencode }}"
-               class="ai-link" title="AI analysis">✨AI</a>
+               class="ai-link" title="AI analysis" onclick="return showLoadingAndNavigate(this, '🤖 Thinking…');">✨AI</a>
         {% endif %}
     </h1>
     {% if detail.current %}

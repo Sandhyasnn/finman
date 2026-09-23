@@ -671,7 +671,7 @@ async def ai_holding_page(request: Request, owner: str, asset_type: str, broker:
 
     return templates.TemplateResponse(
         request,
-        request.config.template_names.ai_explain_template,
+        request.app.state.config.template_names.ai_explain_template,
         {
             "detail": detail,
             "return_url": return_url,
