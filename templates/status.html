@@ -53,6 +53,9 @@
 
     <section>
         <h2>Transaction Ingestion</h2>
+        <p>
+            Last ingestion: <strong>{{ status.updated_at | date("datetime") }}</strong>
+        </p>
         <div class="table-wrap">
             <table>
                 <thead>
@@ -119,6 +122,10 @@
                 <span>tax records</span>
             </div>
         </div>
+
+        <p>
+            Last ingestion: <strong>{{ tax_status.updated_at | date("datetime") }}</strong>
+        </p>
 
         <div class="table-wrap">
             <table>
@@ -196,6 +203,8 @@
     {% endif %}
     </section>
 
+    <hr/>
+
     <section>
         <h2>Market Prices</h2>
 
@@ -216,7 +225,7 @@
             </div>
 
             <p>
-                Last refresh: <strong>{{ price_status.updated_at }}</strong>
+                Last refresh: <strong>{{ price_status.updated_at | date("datetime") }}</strong>
             </p>
 
             {% if price_status.exchange_rates.required %}
@@ -275,6 +284,8 @@
         {% endif %}
     </section>
     <footer>Output: {{ price_status.output_file }}</footer><br>
+
+    <hr/>
 
     <section>
         <h2>AI Providers</h2>

@@ -59,10 +59,10 @@ if (themeSelect) {
 // Price refresh UI
 // Immediately gives the user feedback when a price refresh is requested, disables the link to prevent 
 // duplicate refresh requests, and then starts the normal server-side /refresh_prices request.
-function startPriceRefresh(link) {
+function showLoadingAndNavigate(link, message="⟳ Refreshing prices…") {
 
     // Show immediate feedback to the user
-    link.textContent = "⟳ Refreshing prices…";
+    link.textContent = message;
 
     // Prevent another click while the refresh is running
     link.style.pointerEvents = "none";

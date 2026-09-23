@@ -76,7 +76,7 @@
 
             <a id="prices-link"
                href="/refresh_prices?return_to={{ request.url.path }}&owner={{ selected_owner | urlencode }}"
-               onclick="return startPriceRefresh(this);">
+               onclick="return showLoadingAndNavigate(this);">
                 ↻ Prices
             </a>
 
@@ -84,7 +84,10 @@
                 <button id="menuToggle" class="clickbtn" type="button">⋮ More</button>
 
                 <div id="menuDropdown" class="menu-dropdown">
-                    <a href="/status?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}">Status</a>
+                    <a href="/status?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}"
+                        onclick="return showLoadingAndNavigate(this, 'Loading Status…');">
+                        Status
+                    </a>
                     <a href="/settings?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}">Settings</a>
                     <div class="menu-divider"></div>
                         <a href="/reingest?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}">↻ Reingest</a>

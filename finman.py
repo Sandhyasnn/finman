@@ -89,6 +89,7 @@ def run_ingestion(app):
             "datasets": result["datasets"],
             "total_transactions": result["total_transactions"],
             "output_file": result["output_file"],
+            "updated_at": datetime.now().isoformat()
         }
         return result  # Returns the status and transactions
     except ValueError as exc:
@@ -128,6 +129,7 @@ def run_tax_ingestion(app):
             "datasets": result["datasets"],
             "total_tax_records": result["total_tax_records"],
             "output_file": result["output_file"],
+            "updated_at": datetime.now().isoformat()
         }
 
         return result
