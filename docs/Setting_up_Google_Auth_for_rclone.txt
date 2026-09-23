@@ -1,0 +1,391 @@
+SETTING UP GOOGLE AUTH FOR RCLONE
+=====================================
+
+Purpose
+-------
+This manual documents how to configure Google Drive authentication for rclone
+when rclone runs inside the FinMan Debian LXC container on Proxmox.
+
+It is specifically intended for the FinMan setup where:
+
+    Google Drive
+        |
+        v
+    rclone (inside FinMan LXC)
+        |
+        v
+    /srv/portfolio-inputs
+
+
+1. IMPORTANT: GOOGLE OAUTH TESTING MODE
+---------------------------------------
+
+If the Google OAuth application is left in "Testing" mode, Google refresh
+tokens can expire after 7 days.
+
+Symptoms in the rclone log include:
+
+    invalid_grant: maybe token expired?
+    try refreshing with "rclone config reconnect gdrive:"
+
+For a personal-use application, publish the OAuth app so that its status is:
+
+    In production
+
+A public website is not required for the FinMan application itself, but Google
+OAuth branding can require an application homepage and privacy policy URL.
+For FinMan, these were hosted separately using GitHub Pages:
+
+    https://sowmyanms.github.io/finman-oauth/
+
+Privacy policy:
+
+    https://sowmyanms.github.io/finman-oauth/privacy.html
+
+
+2. GOOGLE CLOUD OAUTH SETUP
+----------------------------
+
+Open Google Cloud Console and go to:
+
+    Google Auth Platform
+
+Configure the OAuth application as follows:
+
+    User type: External
+    Test user: the Google account used by FinMan
+    Publishing status: In production
+
+Under Branding, provide the required application information.
+
+For a personal FinMan application, the app is intended for the owner's
+personal use and is not a public service.
+
+After completing the required information, use:
+
+    Publish app
+
+Confirm that the publishing status changes to:
+
+    In production
+
+
+3. WHERE RCLONE RUNS
+--------------------
+
+The FinMan rclone configuration is stored inside the FinMan LXC container.
+
+Therefore, rclone authentication commands must be run inside the container,
+normally as root.
+
+From the Proxmox host:
+
+    pct enter <FINMAN_CT_ID>
+
+For example:
+
+    pct enter 100
+
+Then you should see:
+
+    root@finman:~#
+
+
+4. RECONNECT RCLONE
+-------------------
+
+Inside the FinMan container, run:
+
+    rclone config reconnect gdrive:
+
+When prompted:
+
+    Token already configured - replace it?
+
+answer:
+
+    y
+
+If asked whether to use a web browser on this machine, answer:
+
+    n
+
+This is because the FinMan Debian LXC is normally headless.
+
+
+5. AUTHORIZE FROM A WINDOWS PC
+------------------------------
+
+rclone will display a command similar to:
+
+    rclone authorize "drive" "..."
+
+The exact command contains an authorization/configuration value.
+
+You need a Windows PC with rclone installed and a browser.
+
+IMPORTANT:
+The Windows PC does NOT need to be the PC that runs FinMan.
+It only performs the Google browser authorization.
+
+Run the exact rclone authorize command displayed by the FinMan container
+on the Windows PC.
+
+The browser will open.
+
+Sign in to the Google account used by FinMan and approve the requested
+Google Drive access.
+
+rclone will then display the resulting authorization information.
+
+
+6. RETURN THE AUTHORIZATION TO FINMAN
+-------------------------------------
+
+Go back to the FinMan container.
+
+rclone will be waiting for the authorization/configuration token at a prompt
+such as:
+
+    config_token>
+
+Paste the authorization result directly into the FinMan terminal.
+
+DO NOT paste the token into email, chat, documentation, GitHub, or any other
+public location.
+
+Complete the remaining rclone prompts.
+
+If asked:
+
+    Configure this as a Shared Drive?
+
+For the normal personal FinMan Google Drive setup, answer:
+
+    n
+
+
+7. VERIFY GOOGLE DRIVE ACCESS
+------------------------------
+
+Inside the FinMan container, test:
+
+    rclone ls gdrive:Personal/PortfolioInputs
+
+The command should list the files in the Google Drive folder.
+
+An empty result is not necessarily an authentication failure if the folder
+contains no files. The important point is that rclone completes without an
+authentication error.
+
+
+8. TEST THE ACTUAL FINMAN SYNC
+------------------------------
+
+Run the same command used by the FinMan cron job:
+
+    /usr/bin/flock -n /tmp/rclone-finman.lock /usr/bin/rclone copy -v gdrive:Personal/PortfolioInputs /srv/portfolio-inputs --exclude "*.lnk"
+
+A successful run may report:
+
+    There was nothing to transfer
+
+or may show files being transferred.
+
+Both are normal.
+
+
+9. VERIFY THE CRON JOB
+----------------------
+
+Check the root crontab:
+
+    crontab -l
+
+The FinMan setup uses:
+
+    @reboot sleep 60 && /usr/bin/flock -n /tmp/rclone-finman.lock /usr/bin/rclone copy -v gdrive:Personal/PortfolioInputs /srv/portfolio-inputs --exclude "*.lnk" >> /root/rclone-finman.log 2>&1
+
+    */30 * * * * /usr/bin/flock -n /tmp/rclone-finman.lock /usr/bin/rclone copy -v gdrive:Personal/PortfolioInputs /srv/portfolio-inputs --exclude "*.lnk" >> /root/rclone-finman.log 2>&1
+
+Do not change the cron job merely because OAuth authentication was renewed.
+
+
+10. CHECK THE RCLONE LOG
+------------------------
+
+The log is:
+
+    /root/rclone-finman.log
+
+View the latest entries:
+
+    tail -20 /root/rclone-finman.log
+
+Normal successful entries can include:
+
+    There was nothing to transfer
+
+    Checks: ...
+
+    Transferred: ...
+
+The key thing to watch for is the absence of:
+
+    invalid_grant
+
+If invalid_grant returns repeatedly, check the Google OAuth application's
+publishing status and reconnect rclone again.
+
+
+11. IMPORTANT: TOKEN SECURITY
+-----------------------------
+
+The rclone OAuth token is sensitive.
+
+Never publish or share:
+
+    - the rclone OAuth token
+    - the contents of the rclone configuration containing the token
+    - OAuth client secrets
+
+If an OAuth client secret is accidentally exposed, rotate it in Google Cloud
+and update the rclone configuration as appropriate.
+
+Do not paste tokens or client secrets into ChatGPT or other public services.
+
+
+12. USEFUL DIAGNOSTIC COMMANDS
+------------------------------
+
+Check which rclone is being used:
+
+    which rclone
+
+Check the rclone version:
+
+    rclone version
+
+Find the rclone configuration file:
+
+    rclone config file
+
+Check for another rclone process:
+
+    ps aux | grep '[r]clone'
+
+List the Google Drive files:
+
+    rclone ls gdrive:Personal/PortfolioInputs
+
+Test the FinMan sync:
+
+    /usr/bin/flock -n /tmp/rclone-finman.lock /usr/bin/rclone copy -v gdrive:Personal/PortfolioInputs /srv/portfolio-inputs --exclude "*.lnk"
+
+View the cron configuration:
+
+    crontab -l
+
+View recent sync activity:
+
+    tail -30 /root/rclone-finman.log
+
+
+13. QUICK RECOVERY PROCEDURE
+----------------------------
+
+If Google Drive authentication fails in the future:
+
+    1. Enter the FinMan LXC from the Proxmox host:
+
+       pct enter <FINMAN_CT_ID>
+
+    2. Inside FinMan, reconnect:
+
+       rclone config reconnect gdrive:
+
+    3. Replace the existing token:
+
+       y
+
+    4. Because FinMan is headless:
+
+       n
+
+    5. Run the displayed "rclone authorize" command on a Windows PC
+       with rclone and a browser.
+
+    6. Complete Google authentication.
+
+    7. Paste the resulting authorization information directly into the
+       FinMan terminal.
+
+    8. Choose "n" for Shared Drive for a personal Google Drive.
+
+    9. Verify:
+
+       rclone ls gdrive:Personal/PortfolioInputs
+
+   10. Test the actual sync.
+
+   11. Check:
+
+       tail -20 /root/rclone-finman.log
+
+
+14. CURRENT FINMAN CONFIGURATION
+-------------------------------
+
+Google Drive remote:
+
+    gdrive:
+
+Google Drive source folder:
+
+    gdrive:Personal/PortfolioInputs
+
+Local destination:
+
+    /srv/portfolio-inputs
+
+Excluded files:
+
+    *.lnk
+
+Sync frequency:
+
+    Every 30 minutes
+
+Startup sync:
+
+    Yes, after a 60-second delay
+
+Lock:
+
+    /tmp/rclone-finman.lock
+
+Log:
+
+    /root/rclone-finman.log
+
+
+15. LESSON LEARNED
+------------------
+
+The original authentication problem was caused by the Google OAuth application
+being in Testing mode.
+
+The refresh token worked initially, then failed approximately seven days
+later with invalid_grant.
+
+The permanent setup is:
+
+    Google OAuth app
+        -> In production
+        -> Fresh rclone authorization
+        -> rclone running inside FinMan LXC
+        -> Cron sync every 30 minutes
+
+After changing the OAuth app to In production, always perform a fresh
+rclone reconnect so that the token used by FinMan is newly issued under the
+production configuration.

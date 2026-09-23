@@ -6,26 +6,128 @@
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#0b6670">
     <title>FinMan - {% block title %}{% endblock %}</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=2">
     <link rel="stylesheet" href="/static/themes.css">
     {% block extra_css %}{% endblock %}
 </head>
 
 <body>
+    {% if selected_owner is defined %}
+    {# Only pages that need a owner context has the full menu since these menu items need the owner context
+       Utility pages like status or settings are owner independent and navigation to those pages means the user
+       can nagivate back to wherever he came form - the return_url model takes care of that
+    #}
+    <header>
+        <div>
+            <p class="eyebrow">FINMAN</p>
+            <h1>{% block page_header %}{% endblock %}</h1>
+        </div>
+
+        <div class="view-controls">
+            <span><!--View:-->
+                <a href="/dashboard?owner={{ selected_owner | urlencode }}"
+                   {% if request.url.path == '/dashboard' %}class="active"{% endif %}>
+                    Dashboard
+                </a> |
+                <a href="/portfolio?owner={{ selected_owner | urlencode }}"
+                   {% if request.url.path == '/portfolio' %}class="active"{% endif %}>
+                    Portfolio
+                </a> |
+                <a href="/broker?owner={{ selected_owner | urlencode }}"
+                   {% if request.url.path == '/broker' %}class="active"{% endif %}>
+                    Broker
+                </a> |
+                <a href="/tax?owner={{ selected_owner | urlencode }}"
+                   {% if request.url.path == '/tax' %}class="active"{% endif %}>
+                    Tax-Port
+                </a> |
+                <a href="/tax/broker?owner={{ selected_owner | urlencode }}"
+                   {% if request.url.path == '/tax/broker' %}class="active"{% endif %}>
+                    Tax-Broker
+                </a>
+            </span>
+
+            <form method="get" action="{{ request.url.path }}">
+                <label for="owner">Owner: </label>
+                <select id="owner" name="owner" onchange="this.form.submit()">
+                    {% for owner, owner_ids in owners.items() %}
+                        <option value="{{ owner }}"
+                            {% if selected_owner == owner %}selected{% endif %}>
+                            {{ owner }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            {% if request.url.path == "/tax" or request.url.path == "/tax/broker" %}
+                <form method="get" action="{{ request.url.path }}">
+                    <input type="hidden" name="owner" value="{{ selected_owner }}">
+                    <label for="fy">FY:</label>
+                    <select id="fy" name="fy" onchange="this.form.submit()">
+                        {% for available_fy in fys %}
+                            <option value="{{ available_fy }}"
+                                {% if selected_fy == available_fy %}selected{% endif %}>
+                                {{ available_fy }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            {% endif %}
+
+            <a id="prices-link"
+               href="/refresh_prices?return_to={{ request.url.path }}&owner={{ selected_owner | urlencode }}"
+               onclick="return startPriceRefresh(this);">
+                ↻ Prices
+            </a>
+
+            <div class="menu-wrapper">
+                <button id="menuToggle" class="clickbtn" type="button">⋮ More</button>
+
+                <div id="menuDropdown" class="menu-dropdown">
+                    <a href="/status?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}">Status</a>
+                    <a href="/settings?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}">Settings</a>
+                    <div class="menu-divider"></div>
+                        <a href="/reingest?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}">↻ Reingest</a>
+                        <a href="#" id="refreshResearchBtn">Refresh Research</a>
+                        <a href="/logout">Logout</a>
+                    <div class="menu-divider"></div>
+                    <div class="menu-section">
+                        <label for="theme-select">Theme</label>
+                        <select id="theme-select">
+                            <optgroup label="Pastel">
+                                <option value="pastel-mint">Mint</option>
+                                <option value="pastel-lavender">Lavender</option>
+                                <option value="pastel-saffron">Saffron</option>
+                            </optgroup>
+                            <optgroup label="Strong">
+                                <option value="strong-navy">Navy</option>
+                                <option value="strong-emerald">Emerald</option>
+                                <option value="strong-crimson">Crimson</option>
+                            </optgroup>
+                            <optgroup label="Gradient">
+                                <option value="gradient-dusk">Dusk</option>
+                                <option value="gradient-oceanic">Oceanic</option>
+                                <option value="gradient-ember">Ember</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    {% endif %}
+
     {% block content %}{% endblock %}
+   
+    {% set updated_at = price_updated_at() %}    
+    {% if updated_at %}
+        <div class="toast-timestamp">
+            Last update: {{ updated_at | date("datetime")}}
+        </div>
+    {% endif %}
 
-    <script>
-        // Apply saved theme on every page
-        (function () {
-        // Retrieve previously saved theme preference from local storage
-            const saved = localStorage.getItem("finman-theme");
+    <script src="/static/finman.js?v=2"></script>
 
-            if (saved) {
-                // Apply theme attribute to <html> element to trigger CSS rules (e.g., [data-theme="dark"])
-                document.documentElement.setAttribute("data-theme", saved);
-            }
-        })();
-    </script>    
 </body>
 </html>
 

@@ -236,6 +236,25 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------
 app = FastAPI(title="FinMan", version="0.1.0", lifespan=lifespan)
 
+# ------------------------------------------------------------
+# Jinja globals
+# ------------------------------------------------------------
+def price_updated_at():
+    """Return the timestamp of the most recent successful price refresh."""
+    price_status = getattr(app.state, "price_refresh_status", None)
+    return price_status.get("updated_at") if price_status else None
+
+def usd_inr_rate():
+    """Return the exchange rate of the most recent successful price refresh."""
+    price_status = getattr(app.state, "price_refresh_status", None)
+    if not price_status:
+        return None
+    exchange_rates = price_status.get("exchange_rates", {})
+    return exchange_rates.get("USDINR")
+
+templates.env.globals["price_updated_at"] = price_updated_at
+templates.env.globals["usd_inr_rate"] = usd_inr_rate
+
 # Authentication / browser session
 # FinMan uses a signed browser session to remember successful login.
 #
@@ -538,10 +557,6 @@ def portfolio(request: Request, owner: str | None = None):
         for h in total_holdings
     }
 
-    price_status = getattr(request.app.state, "price_refresh_status", None)
-    updated_at = price_status.get("updated_at") if price_status else None
-    usd_inr = price_status.get("exchange_rates", {}).get("USDINR") if price_status else None
-
     return templates.TemplateResponse(
         request,
         request.app.state.config.template_names.portfolio_template,
@@ -550,9 +565,7 @@ def portfolio(request: Request, owner: str | None = None):
             "owners": owners,
             "selected_owner": owner,
             "view_url": "/portfolio",   # "/broker" for Broker
-            "total_by_key": total_by_key,
-            "updated_at": updated_at,
-            "usd_inr": usd_inr,
+            "total_by_key": total_by_key
         },
     )
     # return view.model_dump(mode="json")
@@ -592,9 +605,6 @@ def broker(request: Request, owner: str | None = None):
     overall_summary = build_portfolio_summary(all_view_holdings, view_transactions)
     view.summary = overall_summary
 
-    price_status = getattr(request.app.state, "price_refresh_status", None)
-    updated_at = price_status.get("updated_at") if price_status else None
-
     return templates.TemplateResponse(
         request,
         request.app.state.config.template_names.broker_template,
@@ -602,8 +612,7 @@ def broker(request: Request, owner: str | None = None):
             "view": view,
             "owners": owners,
             "selected_owner": owner,
-            "view_url": "/broker",
-            "updated_at": updated_at,
+            "view_url": "/broker"
         },
     )
     # return view.model_dump(mode="json")

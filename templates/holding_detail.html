@@ -79,10 +79,10 @@
             </thead>
             <tbody>
                 <tr>
-                    <td>{{ detail.current.avg_buy_price | currency }}</td>
+                    <td>{{ detail.current.avg_buy_price | currency(decimal=2) }}</td>
                     <td>{{ detail.current.quantity | decimal }}</td>
                     <td>{{ detail.current.cost | currency }}</td>
-                    <td>{{ detail.current.current_price | currency }}</td>
+                    <td>{{ detail.current.current_price | currency(decimal=2) }}</td>
                     <td>{{ detail.current.current_value | currency }}</td>
                     <td class ="{{ 'positive' if detail.current.gain_value is not none and detail.current.gain_value >= 0 else 'negative' }}">{{ detail.current.gain_value | currency }}</td>
                     <td class ="{{ 'positive' if detail.current.gain_pct is not none and detail.current.gain_pct >= 0 else 'negative' }}">{{ detail.current.gain_pct | percent }}</td>
@@ -109,10 +109,10 @@
             </thead>
             <tbody>
                 <tr>
-                    <td>{{ detail.total.avg_buy_price | currency }}</td>
+                    <td>{{ detail.total.avg_buy_price | currency(decimal=2) }}</td>
                     <td>{{ detail.total.quantity | decimal }}</td>
                     <td>{{ detail.total.cost | currency }}</td>
-                    <td>{{ detail.total.current_price | currency }}</td>
+                    <td>{{ detail.total.current_price | currency(decimal=2) }}</td>
                     <td>{{ detail.total.current_value | currency }}</td>
                     <td class ="{{ 'positive' if detail.total.gain_value is not none and detail.total.gain_value >= 0 else 'negative' }}">{{ detail.total.gain_value | currency }}</td>
                     <td class ="{{ 'positive' if detail.total.gain_pct is not none and detail.total.gain_pct >= 0 else 'negative' }}">{{ detail.total.gain_pct  | percent }}</td>
@@ -192,7 +192,7 @@
                     <td>{{ transaction.transaction_date | date }}</td>
                     <td>{{ transaction.transaction_action }}</td>
                     <td>{{ transaction.transaction_quantity | decimal }}</td>
-                    <td>{{ transaction.transaction_price | currency }}</td>
+                    <td>{{ transaction.transaction_price | currency(decimal=2) }}</td>
                     <td class ="{{ 'positive' if transaction.transaction_value is not none and transaction.transaction_value >= 0 else 'negative' }}">
                         {{ transaction.transaction_value | currency}}</td>
                     <td>

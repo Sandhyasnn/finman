@@ -55,3 +55,36 @@ if (themeSelect) {
         setTheme(e.target.value);
     });
 }
+
+// Price refresh UI
+// Immediately gives the user feedback when a price refresh is requested, disables the link to prevent 
+// duplicate refresh requests, and then starts the normal server-side /refresh_prices request.
+function startPriceRefresh(link) {
+
+    // Show immediate feedback to the user
+    link.textContent = "⟳ Refreshing prices…";
+
+    // Prevent another click while the refresh is running
+    link.style.pointerEvents = "none";
+    link.style.opacity = "0.6";
+
+    // Give the browser time to display the new text
+    // before starting the server request.
+    setTimeout(function () {
+        window.location.href = link.href;
+    }, 100);
+
+    // Prevent the original <a> navigation
+    return false;
+}
+
+// Apply saved theme on every page
+(function () {
+// Retrieve previously saved theme preference from local storage
+    const saved = localStorage.getItem("finman-theme");
+
+    if (saved) {
+        // Apply theme attribute to <html> element to trigger CSS rules (e.g., [data-theme="dark"])
+        document.documentElement.setAttribute("data-theme", saved);
+    }
+})();

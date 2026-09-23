@@ -366,6 +366,12 @@ footer {
 /* =========================================================
    DASHBOARD SPECIFIC STYLING
    ========================================================= */
+    .dashboard {
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
     .dashboard th:not(:first-child),
     .dashboard td:not(:first-child) {
         text-align: right;

@@ -78,7 +78,11 @@
                         {% if holding.asset_type == "US STOCK" %}
                             <!-- US stocks show a second row using native USD transaction and current market values. -->                        
                             <tr class="usd-row">
-                                <td class="security-cell">↳ USD</td>
+                                <td class="security-cell">↳ USD
+                                    {% if usd_inr_rate() %}
+                                        <small>(FX ₹{{ usd_inr_rate() | decimal(2) }}/$)</small>
+                                    {% endif %}
+                                </td>
                                 <td>{{ holding.usd_avg_buy_price | currency(currency="USD", decimal=2) }}</td>
                                 <td>{{ holding.quantity | decimal }}</td>
                                 <td>{{ holding.usd_cost | currency(currency="USD") }}</td>

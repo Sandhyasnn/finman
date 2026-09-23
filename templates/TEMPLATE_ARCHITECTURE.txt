@@ -1,0 +1,428 @@
+FINMAN WEB TEMPLATE STRUCTURE
+=============================
+
+Purpose
+-------
+This document explains how the FinMan Jinja templates and JavaScript fit together. It is intended as a "future me" 
+reference so that common HTML, page-specific HTML, Jinja macros and JavaScript are not accidentally
+duplicated or moved to the wrong place.
+
+============================================================
+1. OVERALL TEMPLATE HIERARCHY
+============================================================
+
+                         base.html
+                            |
+             +--------------+--------------+
+             |              |              |
+             v              v              v
+        baseview.html   holding_detail   standalone
+             |              |              |
+       +-----+-----+        |        +-----+------+
+       |     |     |        |        |     |      |
+       v     v     v        v        v     v      v
+   portfolio broker tax  ai_explain  status settings login
+                         holding_detail
+                                      |
+                                tax_holding_detail
+
+
+Common JavaScript
+-----------------
+                    base.html
+                        |
+                        v
+                  finman.js
+                  /    |    \
+               menu  theme  prices
+
+
+============================================================
+2. base.html
+============================================================
+base.html is the COMMON PARENT TEMPLATE.
+
+It provides:
+- HTML document structure
+- <head>
+- viewport / PWA manifest
+- common CSS
+- common FinMan navigation
+- {% block content %}
+- Last Price Update timestamp
+- loading of /static/finman.js
+
+The common investment navigation is displayed only when selected_owner is available.
+
+IMPORTANT:
+base.html does NOT create variables such as:
+    owners
+    selected_owner
+    fys
+    view
+
+These are supplied by the FastAPI route.
+
+Therefore utility pages such as Status and Settings can extend base.html without needing investment-view data.
+Navigation context is preserved using return_url.
+
+Example:
+    /portfolio?owner=RSN
+             |
+             v
+          Status
+             |
+             v
+    return_url=/portfolio?owner=RSN
+             |
+             v
+    /portfolio?owner=RSN
+
+============================================================
+3. baseview.html
+============================================================
+baseview.html extends base.html.
+
+It is the COMMON PARENT for the investment views:
+    Portfolio
+    Broker
+    Tax Portfolio
+    Tax Broker
+
+It provides:
+- investment-view-specific page heading
+- Portfolio/Broker/Tax context
+- {% block view_content %}
+- Overall Summary where applicable
+
+It should NOT contain the common Dashboard/Portfolio/Broker/Tax navigation. That belongs in base.html.
+
+The individual investment templates provide the actual content inside view_content.
+
+============================================================
+4. portfolio.html
+============================================================
+portfolio.html extends baseview.html.
+
+It contains the actual Portfolio-specific content:
+- investment sections
+- individual holdings
+- prices
+- values
+- gains
+- USD rows for US stocks
+- links to holding detail / AI analysis
+
+Its main content is inside:
+    {% block view_content %}
+
+Therefore the effective hierarchy is:
+    base.html
+        |
+    baseview.html
+        |
+    portfolio.html
+
+
+============================================================
+5. dashboard.html
+============================================================
+dashboard.html extends base.html directly.
+
+It contains Dashboard-specific content:
+- Consolidated Investments
+- Shares & Mutual Funds summary
+
+It does NOT need to contain the common navigation because that now comes from base.html.
+
+Its page heading is supplied through the page-header block used by base.html.
+
+============================================================
+6. status.html
+============================================================
+status.html extends base.html directly.
+
+It is a SYSTEM / DIAGNOSTIC page.
+
+It displays:
+- transaction ingestion status
+- tax ingestion status
+- market price refresh status
+- USD/INR exchange rate
+- missing prices
+- stale prices
+- AI provider status
+
+Status is system-wide and therefore does not need:
+    owners
+    selected_owner
+    owner selector
+
+It has its own simple header and uses return_url to return to the screen from which Status was opened.
+
+Do NOT make Status owner-dependent merely because it extends base.html.
+
+============================================================
+7. settings.html
+============================================================
+settings.html extends base.html.
+
+It is the main FinMan CONFIGURATION browser.
+
+It provides:
+- selection of the JSON configuration file
+- configuration section navigation
+- display of the effective configuration
+- Edit button for editable sections
+
+It receives configuration-specific data such as:
+    settings_files
+    selected_file
+    navigation
+    selected_section
+    section_data
+    section_editable
+
+It is a utility page, not an investment-owner page.
+
+Navigation back to the previous page uses return_url.
+
+============================================================
+8. settings_editor.html
+============================================================
+settings_editor.html extends base.html.
+
+It is the CONFIGURATION EDITOR.
+
+It contains the Jinja macro:
+    render_value()
+
+which recursively walks the configuration tree and generates appropriate HTML controls for:
+- dictionaries
+- lists
+- booleans
+- numbers
+- strings
+- special AI questions/rules
+- provider selections
+- default owner
+- default asset type
+
+Each editable field carries:
+    data-editor-path
+    data-editor-kind
+
+JavaScript then:
+1. reads all editor controls
+2. reconstructs the configuration object
+3. converts values back to their correct types
+4. serializes the result to JSON
+5. places it in the hidden "content" field
+6. submits the form to FastAPI
+
+The editor therefore contains PAGE-SPECIFIC JavaScript.
+
+Do not move that JavaScript to finman.js unless it is later
+refactored into genuinely reusable functionality.
+
+============================================================
+9. holding_detail.html
+============================================================
+holding_detail.html extends base.html.
+
+It displays detailed information for ONE security.
+
+It contains:
+- security / owner heading
+- broker and asset information
+- current price summary
+- total position summary
+- closed position information
+- transaction history
+- transaction filtering
+
+It also provides:
+    {% block holding_bottom %}
+
+which allows child templates to add additional content.
+
+It has its own page-specific JavaScript for filtering
+    Current / Total / Closed transactions.
+
+This JavaScript is specific to holding_detail.html and should remain there unless deliberately refactored.
+
+============================================================
+10. ai_explain.html
+============================================================
+ai_explain.html extends holding_detail.html.
+
+Therefore it inherits the complete Holding Detail page and replaces/adds content through:
+    {% block holding_bottom %}
+
+It displays:
+- AI provider results
+- model name
+- provider summary
+- Quick Insights
+- questions and answers
+- citations / sources
+- AI errors
+
+The hierarchy is:
+    base.html
+        |
+    holding_detail.html
+        |
+    ai_explain.html
+
+============================================================
+11. tax_holding_detail.html
+============================================================
+tax_holding_detail.html extends base.html directly.
+
+It displays detailed tax information for one security:
+- Tax Summary
+- broker
+- asset type
+- gain type
+- buy value
+- sell value
+- capital gain
+- tax transactions
+- sale date
+- buy price
+- quantity
+- first purchase date
+
+It is a tax-specific detail page and has its own simple header and return_url.
+
+It does not use baseview.html because its layout is different from the normal Portfolio/Broker investment views.
+
+============================================================
+12. macros.html
+============================================================
+macros.html is NOT a page.
+
+It contains reusable Jinja macros.
+
+Current macros include:
+    blankrow()
+        Adds a blank table row.
+    blankrowt()
+        Adds a blank table/table-body structure.
+
+Templates import these macros when required.
+
+Example:
+    {% from "macros.html" import blankrow %}
+
+Macros are reusable Jinja functionality and should remain separate from normal page templates.
+
+============================================================
+13. login.html
+============================================================
+login.html extends base.html but is a SPECIAL CASE.
+
+It provides:
+- password input
+- login form
+- error message
+
+It has its own centered login layout.
+
+It should remain visually independent from the normal investment navigation.
+
+If base.html's common navigation is conditional on selected_owner, Login will naturally not display the investment navigation.
+
+============================================================
+14. finman.js
+============================================================
+finman.js contains COMMON BROWSER-SIDE JavaScript.
+
+Current responsibilities:
+1. More menu
+   - opens/closes the top-level More menu
+2. Theme
+   - applies the saved FinMan theme
+3. Price refresh
+   - startPriceRefresh()
+   - immediately displays:
+         ⟳ Refreshing prices…
+   - prevents duplicate clicks
+   - starts the normal /refresh_prices request
+
+finman.js is loaded centrally by base.html.
+
+Therefore child templates should NOT independently load finman.js.
+
+If finman.js accesses an HTML element that is not present on every page, check that the element exists before attaching event handlers.
+
+============================================================
+15. WHERE NEW CODE SHOULD GO
+============================================================
+COMMON PAGE HTML
+    -> base.html
+
+COMMON INVESTMENT VIEW HTML
+    -> baseview.html
+
+PORTFOLIO-SPECIFIC HTML
+    -> portfolio.html
+
+DASHBOARD-SPECIFIC HTML
+    -> dashboard.html
+
+HOLDING-SPECIFIC HTML
+    -> holding_detail.html
+
+AI HOLDING CONTENT
+    -> ai_explain.html
+
+TAX HOLDING CONTENT
+    -> tax_holding_detail.html
+
+SYSTEM / DIAGNOSTIC CONTENT
+    -> status.html
+
+SETTINGS BROWSER
+    -> settings.html
+
+SETTINGS EDITOR
+    -> settings_editor.html
+
+REUSABLE JINJA FUNCTIONS
+    -> macros.html
+
+COMMON BROWSER JAVASCRIPT
+    -> finman.js
+
+PAGE-SPECIFIC JAVASCRIPT
+    -> remain in the relevant page unless deliberately
+       refactored into reusable functionality
+
+ROUTE DATA
+    -> FastAPI route
+
+============================================================
+16. IMPORTANT DESIGN PRINCIPLE
+============================================================
+Jinja template inheritance != data inheritance.
+    {% extends "base.html" %}
+means the template inherits the HTML/Jinja structure.
+
+It does NOT automatically give the template:
+    owners
+    selected_owner
+    view
+    fys
+    etc.
+
+Those variables are supplied by the FastAPI route rendering the page.
+
+Keep common structure in the templates, and keep route-specific data in the routes.
+
+Use return_url when a utility page such as Status or Settings needs to return the user to the exact investment view they came from.
+
+============================================================
+END
+============================================================
