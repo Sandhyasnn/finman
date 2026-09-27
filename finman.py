@@ -36,7 +36,7 @@ from logger import configure_logger, logger
 from ingestion.config import load_config, get_config_environment
 from ingestion.transactions import ingest_transactions
 from market.prices import refresh_prices
-from market.external_links import configure_external_links
+from market.external_links import configure_external_links, load_mf_master
 from ingestion.tax_ingestion import ingest_tax
 from ingestion.json_io import read_json, write_json
 from ingestion.consolidated import ingest_consolidated
@@ -68,6 +68,17 @@ from settings import (
     format_settings_for_display
 )
 
+# ------------------------------------------------------------
+# Mutual Fund Research
+# ------------------------------------------------------------
+# The research module owns the cached MF analytics.  finman.py
+# only exposes those analytics through the authenticated web route.
+from research.research import ( 
+    configure_research, 
+    get_research, 
+    load_research_index, 
+    run_research_refresh
+)
 
 from debug import router as debug_router
 
@@ -196,19 +207,19 @@ async def lifespan(app: FastAPI):
     2. Register development-only debug routes when debug mode is enabled
     3. Configure application logging.
     4. Initialize the cache directory.
-    5. Ingest transactions.
-    6. Ingest tax records.
-    7. Refresh market prices.
-    8. build current holdings
-    9. Yield control to the running application.       
+    5. Configure the external links for the templates use
+    6. Refresh data:
+        Ingest transactions
+        ingest consolidate data
+        Ingest tax records
+        Update market prices
+        Build current holdings
+    7. Configure and run research refresh
+    8. Yield control to the running application.       
     """
     # 1. Load and validate configuration.
     app.state.base_dir = BASE_DIR
     app.state.config = load_config(BASE_DIR)
-
-    # Initialize external-link URL templates from the same validated
-    # configuration used by the rest of FinMan.
-    configure_external_links(app.state.config.model_dump())
 
     # 2. Register development-only debug routes when debug mode is enabled
     if app.state.config.server.debug:
@@ -222,13 +233,23 @@ async def lifespan(app: FastAPI):
     cache_dir.mkdir(parents=True, exist_ok=True)
     app.state.cache_dir = cache_dir
 
-    # 5. Run transaction ingestion automatically at startup.
-    # 6. Run tax ingestion automatically at startup.
-    # 7. Refresh current market prices.
-    # 8. Build current holdings using the enriched transaction data.
+    # 5. Initialize external-link URL templates from the same validated
+    # configuration used by the rest of FinMan.
+    configure_external_links(app.state.config.model_dump())
+
+    # 6. Run transaction ingestion automatically at startup.
+    #    Run consolidated data ingestion at startup
+    #    Run tax ingestion automatically at startup.
+    #    Refresh current market prices.
+    #    Build current holdings using the enriched transaction data.
     refresh_data(app)
 
-    # 9. Application is ready to serve requests.
+    # 7. Initialize Research using the same validated configuration
+    # used by the rest of FinMan.
+    configure_research(app.state.config, BASE_DIR)
+    app.state.research_status = run_research_refresh()
+
+    # 8. Application is ready to serve requests.
     yield
 
     # Shutdown work can be added here later (after yield).
@@ -1175,6 +1196,8 @@ async def status(request: Request, return_url: str = "/portfolio",):
 
     ai_status = await check_ai_health(request.app.state.config.ai)
 
+    research_status = getattr(request.app.state, "research_status", None)
+
     return templates.TemplateResponse(
         request,
         request.app.state.config.template_names.status_template,
@@ -1182,8 +1205,225 @@ async def status(request: Request, return_url: str = "/portfolio",):
             "status": ingestion_status,
             "tax_status": tax_ingestion_status,
             "price_status": price_refresh_status,
+            "research_status": research_status,
             "ai_status": ai_status,
             "return_url" : return_url,
+        },
+    )
+
+# ------------------------------------------------------------
+# Mutual Fund Research
+# ------------------------------------------------------------
+def build_research_viewmodel(fund, *, generated_at: str | None = None):
+    """
+    Convert the Research model into the presentation structure expected by research.html.
+
+    No calculations are performed here.
+    """
+    # --------------------------------------------------------
+    # Identity
+    # --------------------------------------------------------
+    full_name = fund.fund_name
+    display_name = full_name
+    subtitle = ""
+
+    if " - " in full_name:
+        parts = full_name.split(" - ")
+        display_name = parts[0]
+        subtitle = " • ".join(parts[1:])
+
+    vm = {
+        "fund_name": full_name,
+        "display_name": display_name,
+        "subtitle": subtitle,
+        "amfi_code": fund.amfi_code,
+        "generated_at": generated_at,
+    }
+
+    # --------------------------------------------------------
+    # Performance
+    # --------------------------------------------------------
+    vm["performance"] = {
+        "cagr_1y": fund.cagr_1y,
+        "cagr_3y": fund.cagr_3y,
+        "cagr_5y": fund.cagr_5y,
+    }
+
+    # --------------------------------------------------------
+    # Risk
+    # --------------------------------------------------------
+    drawdown = fund.drawdown
+    volatility = fund.volatility
+
+    vm["risk"] = {
+        "volatility": (
+            volatility.volatility
+            if volatility else None
+        ),
+        "observations": (
+            volatility.observations
+            if volatility else None
+        ),
+        "max_drawdown": (
+            drawdown.max_drawdown
+            if drawdown else None
+        ),
+        "current_drawdown": (
+            drawdown.current_drawdown
+            if drawdown else None
+        ),
+        "peak_nav": (
+            drawdown.peak_nav
+            if drawdown else None
+        ),
+        "trough_nav": (
+            drawdown.trough_nav
+            if drawdown else None
+        ),
+        "peak_date": (
+            drawdown.peak_date
+            if drawdown else None
+        ),
+        "trough_date": (
+            drawdown.trough_date
+            if drawdown else None
+        ),
+    }
+
+    # --------------------------------------------------------
+    # Rolling Returns
+    # --------------------------------------------------------
+    rolling = []
+
+    for years, result in [
+        (1, fund.rolling_1y),
+        (3, fund.rolling_3y),
+        (5, fund.rolling_5y),
+    ]:
+        rolling.append({
+            "years": years,
+            "available": result is not None,
+            "min_return": (
+                result.min_return if result else None
+            ),
+            "avg_return": (
+                result.avg_return if result else None
+            ),
+            "median_return": (
+                result.median_return if result else None
+            ),
+            "max_return": (
+                result.max_return if result else None
+            ),
+            "observations": (
+                result.observations if result else None
+            ),
+        })
+
+    vm["rolling"] = rolling
+
+    # --------------------------------------------------------
+    # Calendar Returns
+    # --------------------------------------------------------
+    calendar = []
+
+    if fund.calendar_returns:
+        for result in sorted(
+            fund.calendar_returns,
+            key=lambda x: x.year,
+            reverse=True,
+        ):
+            calendar.append({
+                "year": result.year,
+                "return_pct": result.return_pct,
+                "start_nav": result.start_nav,
+                "end_nav": result.end_nav,
+            })
+
+    vm["calendar_returns"] = calendar
+
+    # --------------------------------------------------------
+    # Summary cards
+    # --------------------------------------------------------
+    vm["summary"] = [
+        {
+            "label": "1 Year CAGR",
+            "value": fund.cagr_1y,
+            "class": (
+                "positive"
+                if fund.cagr_1y is not None
+                and fund.cagr_1y >= 0
+                else "negative"
+            ),
+        },
+        {
+            "label": "3 Year CAGR",
+            "value": fund.cagr_3y,
+            "class": (
+                "positive"
+                if fund.cagr_3y is not None
+                and fund.cagr_3y >= 0
+                else "negative"
+            ),
+        },
+        {
+            "label": "5 Year CAGR",
+            "value": fund.cagr_5y,
+            "class": (
+                "positive"
+                if fund.cagr_5y is not None
+                and fund.cagr_5y >= 0
+                else "negative"
+            ),
+        },
+    ]
+
+    return vm
+
+@app.get("/refresh_research", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+async def refresh_research_route(request: Request, return_to: str = "/portfolio", owner: str = ""):
+    logger.debug("\n" + "=" * 50 + " Refreshing Research")
+
+    request.app.state.research_status = run_research_refresh()
+
+    redirect_url = return_to
+    if owner:
+        redirect_url += f"?owner={owner}"
+
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+@app.get("/research/{amfi_code}", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+async def research_dashboard(request: Request, amfi_code: str):
+    """
+    Display cached research for a mutual fund identified by AMFI code.
+
+    AMFI code is the canonical identifier used by the FinMan
+    research subsystem. The route reads the existing research
+    cache and does not refresh NAV history.
+    """
+    logger.debug("\n" + "=" * 50 + f" Accessed /research/{amfi_code}")
+
+    # Get Research for this fund.
+    # If it is not already cached, get_research() will download the NAV history, calculate the metrics,
+    # and add it to the Research index.
+    fund = get_research(amfi_code)
+
+    research = load_research_index()
+    # Convert the internal FundResearch model into the structure expected by research.html.
+    generated = research.generated_at
+
+    try:
+        generated = datetime.fromisoformat(generated).strftime("%d %b %Y %H:%M")
+    except Exception:
+        pass
+
+    vm = build_research_viewmodel(fund, generated_at=generated)
+
+    return templates.TemplateResponse(
+        request,
+        request.app.state.config.template_names.research_template,
+        {
+            "fund": vm,
         },
     )
 

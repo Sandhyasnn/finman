@@ -721,7 +721,9 @@ def debug_broker_view(request: Request, owner: str = Path(...)):
 
     return view.model_dump(mode="json")
 
-
+# -----------------------------------------------------------------
+# Tax Debug routes
+# -----------------------------------------------------------------
 from tax import build_tax_portfolio_view, build_tax_broker_view, build_tax_summary
 from ingestion.models import TaxView
 @router.get("/taxview")
@@ -782,10 +784,81 @@ def debug_tax(request: Request, fy: str, owner: str = "ALL", view: str = "portfo
     return tax_view.model_dump(mode="json")
 
 
+# -----------------------------------------------------------------
+# Consolidate Data Debug routes
+# -----------------------------------------------------------------
 @router.get("/consolidated")
 def debug_consolidated(request: Request):
     cache_dir: Path = request.app.state.cache_dir
     with open(cache_dir / "consolidated.json", encoding="utf-8") as f:
         return json.load(f)
 
-    
+# -----------------------------------------------------------------
+# Research Debug routes
+# -----------------------------------------------------------------
+from research.research import get_research, load_research_index
+from research.download_nav_history import download_nav_history, NAV_CACHE_DIR
+from datetime import datetime
+
+@router.get("/research/nav/{amfi_code}")
+def debug_research_nav(request: Request, amfi_code: str):
+    nav = download_nav_history(amfi_code)
+    return {
+            "length": len(nav.history),
+            "history": nav,
+        }
+
+@router.get("/research/nav-cache/{amfi_code}")
+def debug_research_nav_cache(request: Request, amfi_code: str):
+    cache_file = NAV_CACHE_DIR / f"{amfi_code}.json"
+
+    if not cache_file.exists():
+        return {"error": f"Cache file not found: {cache_file}"}
+
+    with cache_file.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return {
+            "length": len(data["history"]),
+            "data": data,
+        }
+
+@router.get("/research/{amfi_code}")
+def debug_research_viewmodel(request: Request, amfi_code: str):
+    """
+    Return the exact view-model that research.html receives,
+    as JSON. Useful for inspecting units (fraction vs percent)
+    and the shape of rolling / calendar / risk data.
+    """
+    fund = get_research(amfi_code)
+
+    research = load_research_index()
+    generated = research.generated_at
+    try:
+        generated = datetime.fromisoformat(generated).strftime("%d %b %Y %H:%M")
+    except Exception:
+        pass
+
+    # Import here to avoid circular import at module load time
+    # (finman.py imports the debug router).
+    from finman import build_research_viewmodel
+
+    vm = build_research_viewmodel(fund, generated_at=generated)
+    return vm
+
+@router.get("/research/json/mf_master")
+def debug_mf_master_json(request: Request):
+    from finman import BASE_DIR
+    cache_file = BASE_DIR / "static" / "mf_master.json"
+
+    if not cache_file.exists():
+        return {"error": f"Cache file not found: {cache_file}"}
+
+    with cache_file.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return {
+            "length": len(data["funds"]),
+            "data": data,
+        }
+

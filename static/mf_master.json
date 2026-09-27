@@ -45,21 +45,6 @@
       "morningstar_slug": "aditya-birla-sun-life-large-cap-fund-growth",
       "google_finance_id": "ADIT_BSL_LARG_TTFCN"
     },
-    "Aditya Birla Sun Life Low duration Fund": {
-      "fund_house": "Aditya Birla Sun Life",
-      "category_hint": "Low Duration Debt",
-      "plan": "Direct",
-      "option": "Growth",
-      "direct": true,
-      "amfi_code": "119523",
-      "benchmark": "CRISIL_LOW_DURATION_INDEX",
-      "isin": "INF209K01XU7",
-      "valueresearch_id": 15725,
-      "valueresearch_slug": "",
-      "morningstar_secid": "f00000pdod",
-      "morningstar_slug": "aditya-birla-sun-life-low-duration-direct-plan-growth",
-      "google_finance_id": "ADIT_BSL_LOW_FT6W7C"
-    },
     "Aditya Birla Sun Life Small Cap Fund": {
       "fund_house": "Aditya Birla Sun Life",
       "category_hint": "Small Cap",
@@ -269,21 +254,6 @@
       "morningstar_secid": "f00000pdx0",
       "morningstar_slug": "quant-large-and-mid-cap-fund-direct-plan-growth-option",
       "google_finance_id": "QUAN_LARG_AND_11NYPPT"
-    },
-    "SBI Midcap Fund": {
-      "fund_house": "SBI",
-      "category_hint": "Mid Cap",
-      "plan": "Direct",
-      "option": "Growth",
-      "direct": true,
-      "amfi_code": "119716",
-      "benchmark": "NIFTY_MIDCAP150_TRI",
-      "isin": "INF200K01TP4",
-      "valueresearch_id": 16235,
-      "valueresearch_slug": "sbi-midcap-fund-direct-plan",
-      "morningstar_secid": "f00000pdd7",
-      "morningstar_slug": "sbi-midcap-fund-direct-plan-growth-option",
-      "google_finance_id": "SBI_MIDC_DIR_FVX4QC"
     }
   }
 }

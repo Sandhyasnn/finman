@@ -288,6 +288,48 @@
     <hr/>
 
     <section>
+        <h2>Mutual Fund Research</h2>
+
+        {% if research_status %}
+
+            <div class="summary">
+                <div class="total">
+                    <strong>{{ research_status.success }}</strong>
+                    <span>of {{ research_status.total }} funds refreshed</span>
+                </div>
+
+                <div class="total">
+                    <strong>{{ research_status.failed }}</strong>
+                    <span>failed</span>
+                </div>
+            </div>
+
+            {% if research_status.failed == 0 %}
+                <div class="status-box success">
+                    Research refresh completed successfully.
+                </div>
+            {% else %}
+                <div class="status-box error">
+                    <strong>Research refresh completed with failures.</strong>
+                    <div>
+                        Failed AMFI codes:
+                        {{ research_status.failed_amfi_codes | join(", ") }}
+                    </div>
+                </div>
+            {% endif %}
+
+        {% else %}
+
+            <div class="status-box warning">
+                Research refresh has not run.
+            </div>
+
+        {% endif %}
+    </section>
+
+    <hr/>
+    
+    <section>
         <h2>AI Providers</h2>
         {% if not ai_status or not ai_status.enabled %}
             <div class="status-box warning">AI services are disabled.</div>

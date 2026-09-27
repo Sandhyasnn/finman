@@ -40,6 +40,15 @@
 <p>
     {{ detail.asset_type }}{% if detail.asset_subtype %} · {{ detail.asset_subtype }}{% endif %}
     · {{ detail.broker }}
+    {# 
+        Security-level research links are supplied by the Holding model.
+        The template intentionally does not know which providers exist.
+
+        For mutual funds, security_links() may contain the internal FinMan Research link plus external provider 
+        links such as Value Research, Morningstar and Google Finance.
+
+        Keeping this generic means new link providers can be added in the link-generation layer without changing this template.
+    #}    
     {% if security_links %}
         <span class="security-links">
         •

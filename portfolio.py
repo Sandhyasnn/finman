@@ -335,8 +335,12 @@ def build_holdings(transactions: list[Transaction], scope: HoldingScope = "curre
                 asset_subtype=first.asset_subtype,
                 broker=first.broker,
 
-                # External research links belong to the Holding, not to individual transactions. 
-                # This means one security's links are carried once per Holding object.
+                # Research links belong to the Holding, not to individual transactions. security_links() resolves the appropriate 
+                # links from the security's asset type. For mutual funds this includes the internal FinMan Research page when an 
+                # AMFI code is available, plus any external research providers whose required identifiers are present in mf_master.json.
+                #
+                # Keeping links on Holding ensures that the same security-level links are available to portfolio, broker and 
+                # detailed holding views without duplicating link data on individual transactions.
                 links=security_links(
                     security=first.security,
                     asset_type=first.asset_type,

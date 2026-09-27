@@ -174,10 +174,22 @@
         <li><a href="/debug/consolidated">/debug/consolidated.json</li>
     </ul>
 
+    <h2>research Routes</h2>
+    <ul>
+        {% set view_types = ["portfolio","broker"] %}
+        {% set owners = ["MALT","MALT(Z)","RSN","Sandhya","USHA"] %}
+
+        <li><a href="/debug/research/json/mf_master">/debug/research/json/mf_master</li>
+        <li><a href="/debug/research/nav/120564">/debug/research/nav/120564</li>
+        <li><a href="/debug/research/nav-cache/120564">/debug/research/nav-cache/120564</li>
+        <li><a href="/debug/research/120564">/debug/research/120564</li>
+    </ul>
+
     <p class="note">
         <strong>Note:</strong> Replace <code>localhost:5003</code> with your actual server address if accessing remotely.<br>
         Some endpoints (like /admin/reindex) may require authentication in future versions.
     </p>
+
 
     <footer>
         FinMan • FastAPI Dashboard • Running on http://localhost:5000

@@ -92,7 +92,10 @@
                     <div class="menu-divider"></div>
                         <a href="/reingest?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}"
                         onclick="return showLoadingAndNavigate(this, 'Reingesting Data…');">↻ Reingest</a>
-                        <a href="#" id="refreshResearchBtn">Refresh Research</a>
+                        <a href="/refresh_research?return_to={{ request.url.path }}&owner={{ selected_owner | urlencode }}"
+                        onclick="return showLoadingAndNavigate(this, 'Refreshing Research…');">
+                            ↻ Refresh Research
+                        </a>                        
                         <a href="/logout">Logout</a>
                     <div class="menu-divider"></div>
                     <div class="menu-section">

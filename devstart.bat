@@ -15,6 +15,5 @@ python finman.py ^
         --reload-dir . ^
         --reload-include="*.html" ^
         --reload-include="*.js" ^
-        --reload-include="*.json" ^
         --reload-exclude="cache/**"
         

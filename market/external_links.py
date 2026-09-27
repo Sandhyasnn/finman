@@ -93,13 +93,15 @@ def stock_links(symbol: str, exchange: str = "NSE") -> Dict[str, dict]:
 # -------------------------------------------------
 def mf_links(fund_name: str) -> Dict[str, str]:
     """
-    Build external research links for a mutual fund.
+    Build research and external links for a mutual fund.
 
-    The fund name is resolved through mf_master.json. The master file supplies provider-specific
-    identifiers; config.json supplies the corresponding URL templates.
+    The fund name is resolved exactly through mf_master.json. The master file supplies the identifiers required by 
+    FinMan Research and by external providers; config.json supplies the corresponding URL templates and presentation metadata.
 
-    A provider is included only when its required identifier exists. This preserves the 
-    existing "never guess a deep link" behaviour.      
+    FinMan Research uses the AMFI code as its canonical identifier and points to the internal /research/{amfi_code} page.
+
+    External providers are included only when all of their required identifiers exist. This preserves the 
+    existing "never guess a deep link" behaviour.        
     """
     master = load_mf_master()
     entry = master.get(fund_name)
@@ -112,7 +114,33 @@ def mf_links(fund_name: str) -> Dict[str, str]:
     
     links: Dict[str, str] = {}
 
+    # ------------------------------------------------------------------
+    # FinMan Research
+    # ------------------------------------------------------------------
+    # Research is an internal FinMan page, so the AMFI code is the canonical identifier. It is already maintained 
+    # in mf_master.json and is also the key used by the research subsystem.
+    #
+    # Unlike external providers, Research does not require a provider-specific slug or security ID. The link is 
+    # generated only when an AMFI code is present, so we never construct a research URL from the fund name.
+    amfi_code = entry.get("amfi_code")
+
+    if amfi_code:
+        template = templates.get("research")
+
+        if template:
+            links["research"] = {
+                "label": template["label"],
+                "url": template["url"].format(
+                    amfi_code=amfi_code,
+                ),
+                "icon": template["icon"],
+            }
+
+    # ------------------------------------------------------------------
     # Value Research
+    # ------------------------------------------------------------------
+    # Value Research requires both its numeric fund ID and its URL slug.  We deliberately do not create a link
+    # when either identifier is missing, preserving the "never guess a deep link" rule.
     vr_id = entry.get("valueresearch_id")
     vr_slug = entry.get("valueresearch_slug")
 
