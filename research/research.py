@@ -13,7 +13,9 @@ from research.download_nav_history import (
 
 from research.nav_metrics import (
     calc_trailing_cagr,
+    calc_trailing_return_months,
     calc_rolling_returns,
+    calc_rolling_returns_months,
     calc_drawdown,
     calc_calendar_year_returns,
     calc_volatility,
@@ -58,18 +60,32 @@ def configure_research(config, base_dir: Path):
 def _safe_rolling_returns(nav_history: NAVHistory, years: int):
     # Return None instead of failing when there is insufficient NAV history.
     try:
-        return calc_rolling_returns(nav_history,years)
+        return calc_rolling_returns(nav_history, years)
     except ValueError:
-        # logger.warning("Insufficient history for %sY rolling returns: %s [%s]", years, nav_history.fund_name, nav_history.amfi_code)
         return None
 
-#Special function to ensure that in case there is no history beyond a period it is managed properly
+
+def _safe_rolling_returns_months(nav_history: NAVHistory, months: int):
+    # Return None instead of failing when there is insufficient NAV history.
+    try:
+        return calc_rolling_returns_months(nav_history, months)
+    except ValueError:
+        return None
+
+
 def _safe_trailing_cagr(nav_history: NAVHistory, years: int):
     # Return None instead of failing when there is insufficient NAV history.
     try:
         return calc_trailing_cagr(nav_history.history, years)
     except ValueError:
-        # logger.warning("Insufficient history for %sY CAGR: %s [%s]", years, nav_history.fund_name, nav_history.amfi_code)
+        return None
+
+
+def _safe_trailing_return_months(nav_history: NAVHistory, months: int):
+    # Return None instead of failing when there is insufficient NAV history.
+    try:
+        return calc_trailing_return_months(nav_history.history, months)
+    except ValueError:
         return None
     
 #----------------------------------------------------
@@ -93,13 +109,24 @@ def _calculate_research(amfi_code:str) -> FundResearch:
         amfi_code=history.amfi_code,
         fund_name=history.fund_name,
 
-        cagr_1y=_safe_trailing_cagr(history,1),
-        cagr_3y=_safe_trailing_cagr(history,3),
-        cagr_5y=_safe_trailing_cagr(history,5),
+        return_1m=_safe_trailing_return_months(history, 1),
+        return_3m=_safe_trailing_return_months(history, 3),
+        return_6m=_safe_trailing_return_months(history, 6),
 
-        rolling_1y=_safe_rolling_returns(history,1),
-        rolling_3y=_safe_rolling_returns(history,3),
-        rolling_5y=_safe_rolling_returns(history,5),
+        cagr_1y=_safe_trailing_cagr(history, 1),
+        cagr_3y=_safe_trailing_cagr(history, 3),
+        cagr_5y=_safe_trailing_cagr(history, 5),
+        cagr_7y=_safe_trailing_cagr(history, 7),
+        cagr_10y=_safe_trailing_cagr(history, 10),
+
+        rolling_1m=_safe_rolling_returns_months(history, 1),
+        rolling_3m=_safe_rolling_returns_months(history, 3),
+        rolling_6m=_safe_rolling_returns_months(history, 6),
+        rolling_1y=_safe_rolling_returns(history, 1),
+        rolling_3y=_safe_rolling_returns(history, 3),
+        rolling_5y=_safe_rolling_returns(history, 5),
+        rolling_7y=_safe_rolling_returns(history, 7),
+        rolling_10y=_safe_rolling_returns(history, 10),
 
         drawdown=calc_drawdown(history),
 
@@ -182,19 +209,40 @@ def load_research(amfi_code: str) -> FundResearch | None:
 def _missing_metrics(research: FundResearch) -> list[str]:
     missing = []
 
+    if research.return_1m is None:
+        missing.append("1M return")
+    if research.return_3m is None:
+        missing.append("3M return")
+    if research.return_6m is None:
+        missing.append("6M return")
+
     if research.cagr_1y is None:
         missing.append("1Y CAGR")
     if research.cagr_3y is None:
         missing.append("3Y CAGR")
     if research.cagr_5y is None:
         missing.append("5Y CAGR")
+    if research.cagr_7y is None:
+        missing.append("7Y CAGR")
+    if research.cagr_10y is None:
+        missing.append("10Y CAGR")
 
+    if research.rolling_1m is None:
+        missing.append("1M rolling")
+    if research.rolling_3m is None:
+        missing.append("3M rolling")
+    if research.rolling_6m is None:
+        missing.append("6M rolling")
     if research.rolling_1y is None:
         missing.append("1Y rolling")
     if research.rolling_3y is None:
         missing.append("3Y rolling")
     if research.rolling_5y is None:
         missing.append("5Y rolling")
+    if research.rolling_7y is None:
+        missing.append("7Y rolling")
+    if research.rolling_10y is None:
+        missing.append("10Y rolling")
 
     return missing
 
