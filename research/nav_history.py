@@ -11,7 +11,10 @@ class NAVHistory(BaseModel):
     history: list[NAVPoint]
 
 class RollingReturnStats(BaseModel):
-    years: int
+    # Display period, e.g. 1M, 3M, 6M, 1Y, 3Y, 5Y, 7Y, 10Y.
+    # Optional keeps older cached research JSON backward compatible.
+    period: str | None = None
+    years: float | None = None
     observations: int
     min_return: float
     max_return: float
@@ -39,12 +42,26 @@ class VolatilityStats(BaseModel):
 class FundResearch(BaseModel):
     amfi_code: str
     fund_name: str
+    # Short-term returns are simple period returns.
+    return_1m: float | None = None
+    return_3m: float | None = None
+    return_6m: float | None = None
+
+    # Long-term returns are annualised CAGR.
     cagr_1y: float | None = None
     cagr_3y: float | None = None
     cagr_5y: float | None = None
+    cagr_7y: float | None = None
+    cagr_10y: float | None = None
+
+    rolling_1m: RollingReturnStats | None = None
+    rolling_3m: RollingReturnStats | None = None
+    rolling_6m: RollingReturnStats | None = None
     rolling_1y: RollingReturnStats | None = None
     rolling_3y: RollingReturnStats | None = None
     rolling_5y: RollingReturnStats | None = None
+    rolling_7y: RollingReturnStats | None = None
+    rolling_10y: RollingReturnStats | None = None
     drawdown: DrawdownStats
     volatility: VolatilityStats
     calendar_returns: list[CalendarYearReturn]
