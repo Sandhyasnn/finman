@@ -1244,9 +1244,14 @@ def build_research_viewmodel(fund, *, generated_at: str | None = None):
     # Performance
     # --------------------------------------------------------
     vm["performance"] = {
+        "return_1m": fund.return_1m,
+        "return_3m": fund.return_3m,
+        "return_6m": fund.return_6m,
         "cagr_1y": fund.cagr_1y,
         "cagr_3y": fund.cagr_3y,
         "cagr_5y": fund.cagr_5y,
+        "cagr_7y": fund.cagr_7y,
+        "cagr_10y": fund.cagr_10y,
     }
 
     # --------------------------------------------------------
@@ -1295,13 +1300,18 @@ def build_research_viewmodel(fund, *, generated_at: str | None = None):
     # --------------------------------------------------------
     rolling = []
 
-    for years, result in [
-        (1, fund.rolling_1y),
-        (3, fund.rolling_3y),
-        (5, fund.rolling_5y),
+    for period, result in [
+        ("1M", fund.rolling_1m),
+        ("3M", fund.rolling_3m),
+        ("6M", fund.rolling_6m),
+        ("1Y", fund.rolling_1y),
+        ("3Y", fund.rolling_3y),
+        ("5Y", fund.rolling_5y),
+        ("7Y", fund.rolling_7y),
+        ("10Y", fund.rolling_10y),
     ]:
         rolling.append({
-            "years": years,
+            "period": period,
             "available": result is not None,
             "min_return": (
                 result.min_return if result else None
@@ -1345,40 +1355,32 @@ def build_research_viewmodel(fund, *, generated_at: str | None = None):
     # --------------------------------------------------------
     # Summary cards
     # --------------------------------------------------------
+    performance_items = [
+        ("1 Month Return", fund.return_1m),
+        ("3 Month Return", fund.return_3m),
+        ("6 Month Return", fund.return_6m),
+        ("1 Year CAGR", fund.cagr_1y),
+        ("3 Year CAGR", fund.cagr_3y),
+        ("5 Year CAGR", fund.cagr_5y),
+        ("7 Year CAGR", fund.cagr_7y),
+        ("10 Year CAGR", fund.cagr_10y),
+    ]
+
     vm["summary"] = [
         {
-            "label": "1 Year CAGR",
-            "value": fund.cagr_1y,
+            "label": label,
+            "value": value,
             "class": (
                 "positive"
-                if fund.cagr_1y is not None
-                and fund.cagr_1y >= 0
+                if value is not None and value >= 0
                 else "negative"
             ),
-        },
-        {
-            "label": "3 Year CAGR",
-            "value": fund.cagr_3y,
-            "class": (
-                "positive"
-                if fund.cagr_3y is not None
-                and fund.cagr_3y >= 0
-                else "negative"
-            ),
-        },
-        {
-            "label": "5 Year CAGR",
-            "value": fund.cagr_5y,
-            "class": (
-                "positive"
-                if fund.cagr_5y is not None
-                and fund.cagr_5y >= 0
-                else "negative"
-            ),
-        },
+        }
+        for label, value in performance_items
     ]
 
     return vm
+
 
 @app.get("/refresh_research", response_class=HTMLResponse, dependencies=[Depends(require_login)])
 async def refresh_research_route(request: Request, return_to: str = "/portfolio", owner: str = ""):
