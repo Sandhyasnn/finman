@@ -1,6 +1,6 @@
-from datetime import date
-from math import pow, sqrt
-from datetime import timedelta
+from datetime import date, timedelta
+from calendar import monthrange
+from math import sqrt
 from statistics import mean, median, stdev
 
 from research.nav_history import (
@@ -46,30 +46,93 @@ def calc_trailing_cagr(history, years):
 
     return calculate_cagr(historical.nav, latest.nav, years)
 
+def add_months(value: date, months: int) -> date:
+    """Add calendar months while keeping the day within the target month."""
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def calc_trailing_return_months(history, months: int):
+    """Calculate the actual (non-annualised) return over a calendar-month period."""
+    latest = history[0]
+    target_date = add_months(latest.date, -months)
+    historical = get_nav_before_date(history, target_date)
+
+    if not historical or historical.nav <= 0 or latest.nav <= 0:
+        return None
+
+    return (latest.nav / historical.nav) - 1
+
+
+def calc_trailing_cagr(history, years):
+    # Calculates the CAGR from the latest available time (as provided in 'history')
+    # to the last time backward by 'years'.
+    latest = history[0]
+
+    target_date = latest.date - timedelta(days=int(years * 365.25))
+    historical = get_nav_before_date(history, target_date)
+
+    if not historical:
+        return None
+
+    return calculate_cagr(historical.nav, latest.nav, years)
+
+
 def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnStats:
     '''
-    Calculate the CAGR for every possible starting point over the specified period.
-    if 'years'=3, then it calculates the CAGR for all the starting point for 3 years, 2010-13, 2011-14,etc
-    Example:
-        years=3 calculates 3-year rolling returns for all possible starting points in the NAV history.
-
-    The end-date lookup uses a moving pointer rather than scanning the complete history for every start point.
-    '''    
+    Calculate annualised CAGR for every possible starting point over the specified
+    number of years.
+    '''
     history = sorted(nav_history.history, key=lambda p: p.date)
-
     rolling_returns: list[float] = []
-
     target_days = int(years * 365.25)
-
-    # Target dates move forward as start_point moves forward.
-    # Therefore the end-point index only needs to move forward.
     end_index = 0
 
     for start_point in history:
-        target_date = (start_point.date + timedelta(days=target_days) )   # Target date = startdate + years
+        target_date = start_point.date + timedelta(days=target_days)
 
-        # Find the first NAV on or after the target date. Since target_date only moves forward, 
-        # end_index never needs to move backwards.
+        while (
+            end_index < len(history)
+            and history[end_index].date < target_date
+        ):
+            end_index += 1
+
+        if end_index >= len(history) or start_point.nav <= 0:
+            continue
+
+        end_point = history[end_index]
+        cagr = (end_point.nav / start_point.nav) ** (1 / years) - 1
+        rolling_returns.append(cagr)
+
+    if not rolling_returns:
+        raise ValueError(f"Insufficient history for {years}Y rolling returns")
+
+    return RollingReturnStats(
+        period=f"{years}Y",
+        years=years,
+        observations=len(rolling_returns),
+        min_return=min(rolling_returns),
+        max_return=max(rolling_returns),
+        avg_return=mean(rolling_returns),
+        median_return=median(rolling_returns)
+    )
+
+
+def calc_rolling_returns_months(nav_history: NAVHistory, months: int) -> RollingReturnStats:
+    '''
+    Calculate simple (non-annualised) returns for every possible starting point
+    over the specified number of calendar months.
+    '''
+    history = sorted(nav_history.history, key=lambda p: p.date)
+    rolling_returns: list[float] = []
+    end_index = 0
+
+    for start_point in history:
+        target_date = add_months(start_point.date, months)
+
         while (
             end_index < len(history)
             and history[end_index].date < target_date
@@ -81,18 +144,19 @@ def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnS
 
         end_point = history[end_index]
 
-        cagr = (end_point.nav / start_point.nav) ** (1 / years) - 1
+        if end_point.nav <= 0:
+            continue
 
-        # Accumulate all the rolling returns
-        rolling_returns.append(cagr)
+        period_return = (end_point.nav / start_point.nav) - 1
+        rolling_returns.append(period_return)
 
     if not rolling_returns:
-        raise ValueError(f"Insufficient history for {years}Y rolling returns")
+        raise ValueError(f"Insufficient history for {months}M rolling returns")
 
     return RollingReturnStats(
-        years=years,
+        period=f"{months}M",
+        years=None,
         observations=len(rolling_returns),
-
         min_return=min(rolling_returns),
         max_return=max(rolling_returns),
         avg_return=mean(rolling_returns),
