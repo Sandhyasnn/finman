@@ -24,7 +24,7 @@
             <td>{{ item.label }}</td>
             <td class="num {{ item.class }}">
                 {% if item.value is not none %}
-                    {{ "%.2f"|format(item.value) }} %
+                    {{ item.value | percent(2) }} %
                 {% else %}
                     —
                 {% endif %}

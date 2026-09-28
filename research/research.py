@@ -23,6 +23,11 @@ from ingestion.json_io import read_json, write_json
 
 from market.external_links import load_mf_master
 
+from concurrent.futures import ThreadPoolExecutor
+
+# Maximum no. of parallel hits to get NAV history from MFAPI
+_RESEARCH_MAX_WORKERS = 5
+
 # ------------------------------------------------------------
 # Research configuration
 # ------------------------------------------------------------
@@ -91,7 +96,6 @@ def _calculate_research(amfi_code:str) -> FundResearch:
         cagr_1y=_safe_trailing_cagr(history,1),
         cagr_3y=_safe_trailing_cagr(history,3),
         cagr_5y=_safe_trailing_cagr(history,5),
-
 
         rolling_1y=_safe_rolling_returns(history,1),
         rolling_3y=_safe_rolling_returns(history,3),
@@ -195,8 +199,16 @@ def _missing_metrics(research: FundResearch) -> list[str]:
     return missing
 
 def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
-    # Complete multi-fund research refresh orchestration
-    # Refresh research for all  AMFI code and track successes and failures.
+    """
+    Complete multi-fund research refresh orchestration
+    Refresh research for all  AMFI code and track successes and failures.
+
+    Each fund is independent, so NAV download and metric calculation
+    are performed concurrently using a bounded thread pool.
+
+    The ResearchIndex itself is updated only by the main thread and
+    is saved once after all funds have completed.
+    """    
     success = 0
     failed = 0
 
@@ -210,24 +222,99 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
     index = load_research_index()
     insufficient_history = {}
 
-    for i, amfi_code in enumerate(amfi_codes, start=1):
-        # logger.info("Research refresh [%d/%d]: %s", i, total, amfi_code)        
-        try:
-            research = _calculate_research(amfi_code)
-            missing = _missing_metrics(research)
-            if missing:
-                insufficient_history[research.fund_name] = missing
+    # ------------------------------------------------------------------
+    # Parallel research refresh
+    #
+    # Each mutual fund can be downloaded and calculated independently. The expensive part of 
+    # _calculate_research() is mainly the external MFAPI request, so we use a small pool of worker 
+    # threads to process several funds at the same time.
+    #
+    # max_workers=5 means at most 5 research calculations are running concurrently.
+    # The remaining jobs wait in the executor's queue.
+    #
+    # There are TWO loops below, and they have different purposes:
+    #   1. FIRST LOOP
+    #      Submit all 17 fund calculations to the executor.
+    #
+    #      executor.submit() does NOT wait for the calculation to finish. It starts the job in a
+    #      worker thread (or queues it if all workers are busy) and immediately returns a Future object.
+    #
+    #      'futures' is simply a dictionary:
+    #          AMFI code -> Future representing that fund's calculation
+    #      Example:
+    #          futures["118955"] -> Future for HDFC Flexi Cap
+    #   2. SECOND LOOP
+    #      Go through the funds again and collect their results.
+    #
+    #      future.result() waits only if that particular fund has not finished yet. Once the result 
+    #      is available, the main thread processes it and then moves to the next fund.
+    #
+    #      IMPORTANT:
+    #      The second loop is sequential, but the expensive _calculate_research() work is already 
+    #      running concurrently in the worker threads.
+    #
+    #      In simple terms:
+    #          First loop  = "Here are all the jobs. Go do them."
+    #          Workers    = "We are doing up to 5 at a time."
+    #          Second loop = "Give me the answers one by one."
+    #
+    # The ResearchIndex is deliberately updated only by the main thread.
+    # This avoids multiple worker threads modifying/writing the same JSON index simultaneously.
+    #
+    # The index is saved ONCE after all funds have completed.
+    # ------------------------------------------------------------------
 
-            # Update the in-memory index with the latest research computation
-            _update_research_index(index, research)
+    max_workers = min(_RESEARCH_MAX_WORKERS, total)
 
-            success += 1
-            successful_amfi_codes.append(amfi_code)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
 
-        except Exception as ex:
-            failed += 1
-            failed_amfi_codes.append(amfi_code)
-            logger.exception("Research refresh failed [%d/%d]: %s - %s", i, total, amfi_code, ex)
+        # FIRST LOOP:
+        # Submit all research jobs. This loop runs once per fund.
+        # It does not wait for each research calculation to finish.
+        futures = {}
+
+        for amfi_code in amfi_codes:
+            future = executor.submit(
+                _calculate_research,
+                amfi_code
+            )
+            futures[amfi_code] = future
+
+        # SECOND LOOP:
+        # Collect the results. This also runs once per fund.
+        #
+        # The worker threads are doing the actual research calculations
+        # while this main thread collects the completed results.
+        for i, amfi_code in enumerate(amfi_codes, start=1):
+
+            future = futures[amfi_code]
+
+            try:
+                # Wait for this particular fund if it is not finished yet.
+                research = future.result()
+
+                missing = _missing_metrics(research)
+
+                if missing:
+                    insufficient_history[research.fund_name] = missing
+
+                # Only the main thread updates the shared ResearchIndex.
+                _update_research_index(index, research)
+
+                success += 1
+                successful_amfi_codes.append(amfi_code)
+
+            except Exception as ex:
+                failed += 1
+                failed_amfi_codes.append(amfi_code)
+
+                logger.exception(
+                    "Research refresh failed [%d/%d]: %s - %s",
+                    i,
+                    total,
+                    amfi_code,
+                    ex
+                )
 
     # Save the index once after all funds have been processed.
     if success > 0:

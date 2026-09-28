@@ -176,13 +176,13 @@
 
     <h2>research Routes</h2>
     <ul>
-        {% set view_types = ["portfolio","broker"] %}
-        {% set owners = ["MALT","MALT(Z)","RSN","Sandhya","USHA"] %}
-
+        {% set amfi_codes = ["120564","118989","119528","103174"] %}
         <li><a href="/debug/research/json/mf_master">/debug/research/json/mf_master</li>
-        <li><a href="/debug/research/nav/120564">/debug/research/nav/120564</li>
-        <li><a href="/debug/research/nav-cache/120564">/debug/research/nav-cache/120564</li>
-        <li><a href="/debug/research/120564">/debug/research/120564</li>
+        {% for cd in amfi_codes %}
+            <li><a href="/debug/research/nav/{{ cd }}">/debug/research/nav/{{ cd }} || 
+                <a href="/debug/research/nav-cache/{{ cd }}">/debug/research/nav-cache/{{ cd }} ||
+                <a href="/debug/research/{{ cd }}">/debug/research/{{ cd }}</li>
+        {% endfor %}
     </ul>
 
     <p class="note">

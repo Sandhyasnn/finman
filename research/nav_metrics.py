@@ -47,33 +47,40 @@ def calc_trailing_cagr(history, years):
     return calculate_cagr(historical.nav, latest.nav, years)
 
 def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnStats:
-    # Calculate the CAGR for every possible starting point over the specified period.
-    # if 'years'=3, then it calculates the CAGR for all the starting point for 3 years, 2010-13, 2011-14,etc
+    '''
+    Calculate the CAGR for every possible starting point over the specified period.
+    if 'years'=3, then it calculates the CAGR for all the starting point for 3 years, 2010-13, 2011-14,etc
+    Example:
+        years=3 calculates 3-year rolling returns for all possible starting points in the NAV history.
+
+    The end-date lookup uses a moving pointer rather than scanning the complete history for every start point.
+    '''    
     history = sorted(nav_history.history, key=lambda p: p.date)
 
     rolling_returns: list[float] = []
 
     target_days = int(years * 365.25)
 
-    # The target date moves forward as start_point moves forward.
-    # Keep one moving pointer instead of scanning the entire history from
-    # the beginning for every start point. This reduces the lookup from
-    # O(n²) to O(n).
+    # Target dates move forward as start_point moves forward.
+    # Therefore the end-point index only needs to move forward.
     end_index = 0
 
     for start_point in history:
-        target_date = start_point.date + timedelta(days=target_days)
+        target_date = (start_point.date + timedelta(days=target_days) )   # Target date = startdate + years
 
-        # Advance until this is the first NAV on or after target_date.
-        # Because target_date only moves forward, end_index never needs
-        # to move backwards.
-        while end_index < len(history) and history[end_index].date < target_date:
+        # Find the first NAV on or after the target date. Since target_date only moves forward, 
+        # end_index never needs to move backwards.
+        while (
+            end_index < len(history)
+            and history[end_index].date < target_date
+        ):
             end_index += 1
 
         if end_index >= len(history) or start_point.nav <= 0:
             continue
 
         end_point = history[end_index]
+
         cagr = (end_point.nav / start_point.nav) ** (1 / years) - 1
 
         # Accumulate all the rolling returns

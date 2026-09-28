@@ -1,10 +1,10 @@
 """
 Refresh current market prices and write the price snapshot.
 """
-from ast import If
 import json
 from pathlib import Path
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 
 from ingestion.models import Transaction
 from market.holdings import get_price_securities, YAHOO_ASSET_TYPES_US
@@ -139,49 +139,30 @@ def refresh_prices(transactions: list[Transaction], output_file: str | Path) -> 
     mf_prices = {}
     enrichment_status = [] # Status of the transaction enrishment process
 
-    # yahoo_prices.update(YahooPriceProvider().get_prices(list(securities["yahoo"].values()) ) )
+    # -------------------------------------------------------------------------
+    # Prepare the independent price requests.
+    #
+    # These three operations do not depend on each other:
+    #   1. Yahoo stock prices
+    #   2. AMFI mutual fund prices
+    #   3. USD/INR rate, when US stocks are present
+    #
+    # We will start them together below so that network wait time overlaps.
+    # -------------------------------------------------------------------------
+
     yahoo_symbols = list(securities["yahoo"].values())
-
-    # Get the stocks prices from yahoo provider
-    yahoo_prices.update(YahooPriceProvider().get_prices(yahoo_symbols))
-
-    # Get USD/INR separately when US stocks are present
-    usd_inr_rate = None
 
     # Maintain the status of the FX rate retrieval process
     fx_required = _needs_usd_inr_rate(transactions)
     fx_status = "not_required"
     stale_exchange_rates = []
-
     usd_inr_rate = None
 
-    if fx_required:
-        fx_prices = YahooPriceProvider().get_prices(["INR=X"])  # Fresh/current prices
-        usd_inr_rate = fx_prices.get("INR=X")
-
-        if usd_inr_rate is not None:
-            fx_status = "current"
-        else:
-            # If the current USD/INR rate is unavailable, use the previous
-            # snapshot rate so INR portfolio values can still be calculated.            
-            previous_exchange_rates = previous.get("exchange_rates", {})
-            previous_usd_inr = previous_exchange_rates.get("USDINR")
-
-            if previous_usd_inr is not None:
-                usd_inr_rate = float(previous_usd_inr)
-                fx_status = "stale"
-                stale_exchange_rates.append("USDINR")
-                logger.warning("Unable to get current USD/INR rate; using previous rate: %.6f", usd_inr_rate)
-            else:
-                fx_status = "unavailable"
-                logger.warning("Unable to get USD/INR rate and no previous rate is available.")
-
-    prices.update(yahoo_prices)
-
-    # Get the MF name-amgi_code map for the mf master json
+    # Get the MF name -> AMFI code map for the MF master json
     master = load_mf_master()
 
     mf_code_map = {}
+
     for name in securities["amfi"]:
         entry = master.get(name)
 
@@ -192,12 +173,68 @@ def refresh_prices(transactions: list[Transaction], output_file: str | Path) -> 
 
         mf_code_map[name] = str(entry["amfi_code"])  # updat the amfi code against each MF name
 
-    # Get the prices for each MF baaed on the amfi code form the amfi provider
-    mf_prices.update(AMFINavProvider().get_prices(mf_code_map))
+    # -------------------------------------------------------------------------
+    # Start the independent network requests in parallel.
+    #
+    # We have at most three independent jobs:
+    #   Yahoo stocks
+    #   AMFI mutual funds
+    #   USD/INR
+    #
+    # The providers themselves are left unchanged.  This only changes the orchestration here
+    # so that we don't wait for one network request before starting the next one.
+    # -------------------------------------------------------------------------
+    with ThreadPoolExecutor(max_workers=3) as executor:
+
+        # Start Yahoo stock price retrieval.
+        yahoo_future = executor.submit(YahooPriceProvider().get_prices, yahoo_symbols)
+
+        # Start AMFI mutual fund price retrieval.
+        mf_future = executor.submit(AMFINavProvider().get_prices, mf_code_map)
+
+        # Start USD/INR retrieval only when it is actually required.
+        if fx_required:
+            fx_future = executor.submit(YahooPriceProvider().get_prices,["INR=X"])
+
+        # ---------------------------------------------------------------------
+        # Collect the results.
+        #
+        # result() waits only if that particular job has not finished yet.
+        # The other worker threads continue running independently.
+        # ---------------------------------------------------------------------
+        yahoo_prices = yahoo_future.result()
+        mf_prices = mf_future.result()
+
+        if fx_required:
+            fx_prices = fx_future.result() # Fresh/current prices
+            usd_inr_rate = fx_prices.get("INR=X")
+
+            if usd_inr_rate is not None:
+                fx_status = "current"
+            else:
+                # If the current USD/INR rate is unavailable, use the previous
+                # snapshot rate so INR portfolio values can still be calculated.            
+                previous_exchange_rates = previous.get("exchange_rates", {})
+                previous_usd_inr = previous_exchange_rates.get("USDINR")
+
+                if previous_usd_inr is not None:
+                    usd_inr_rate = float(previous_usd_inr)
+                    fx_status = "stale"
+                    stale_exchange_rates.append("USDINR")
+                    logger.warning("Unable to get current USD/INR rate; using previous rate: %.6f", usd_inr_rate)
+                else:
+                    fx_status = "unavailable"
+                    logger.warning("Unable to get USD/INR rate and no previous rate is available.")
+
+    # -------------------------------------------------------------------------
+    # All provider calls are now complete.
+    # Continue with the existing price merge and transaction enrichment flow.
+    # -------------------------------------------------------------------------
+    prices.update(yahoo_prices)
     prices.update(mf_prices)
 
     # If some of the current prices are missing extract from the existing json and 
-    # merge inot the current prices
+    # merge into the current prices
     all_securities =  list(securities["yahoo"].values()) + list(securities["amfi"].values())
     prices, stale, missing = _merge_previous_prices(prices, previous_prices,all_securities)
     # enrichment_status = _update_transaction_prices(transactions, securities, prices)
@@ -213,7 +250,7 @@ def refresh_prices(transactions: list[Transaction], output_file: str | Path) -> 
     stock_stale = sorted(set(yahoo_keys) & set(stale))
     mf_stale = sorted(set(amfi_keys) & set(stale))
 
-    # update the date and time when theprices were obtained
+    # update the date and time when the prices were obtained
     snapshot = {"updated_at": updated_at, "prices": prices, 
                     "exchange_rates": {"USDINR": usd_inr_rate},
                 "stale": stale, "stale_exchange_rates": stale_exchange_rates,}
