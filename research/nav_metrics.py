@@ -32,20 +32,6 @@ def get_nav_before_date(history, target_date):
 
     return None
 
-def calc_trailing_cagr(history, years):
-    # Calculates the CAGR from the latest available time (as provided in 'hisory')
-    # to the last time backward by 'years'. If years=3, then from current to 3 yrs ago CAGR
-    latest = history[0]
-
-    target_date = (latest.date - timedelta(days=int(years * 365.25)) )
-
-    historical = get_nav_before_date(history, target_date)
-
-    if not historical:
-        return None
-
-    return calculate_cagr(historical.nav, latest.nav, years)
-
 def add_months(value: date, months: int) -> date:
     """Add calendar months while keeping the day within the target month."""
     month_index = value.month - 1 + months
