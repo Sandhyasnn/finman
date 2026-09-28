@@ -55,23 +55,25 @@ def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnS
 
     target_days = int(years * 365.25)
 
+    # The target date moves forward as start_point moves forward.
+    # Keep one moving pointer instead of scanning the entire history from
+    # the beginning for every start point. This reduces the lookup from
+    # O(n²) to O(n).
+    end_index = 0
+
     for start_point in history:
-        target_date = (start_point.date + timedelta(days=target_days) )   # Target date = startdate + years
+        target_date = start_point.date + timedelta(days=target_days)
 
-        # get the NAV date that is closest on or after the target date
-        end_point = next(
-            (
-                p
-                for p in history
-                if p.date >= target_date
-            ),
-            None
-        )
+        # Advance until this is the first NAV on or after target_date.
+        # Because target_date only moves forward, end_index never needs
+        # to move backwards.
+        while end_index < len(history) and history[end_index].date < target_date:
+            end_index += 1
 
-        # If no data then skip this row
-        if end_point is None or start_point.nav <= 0:
+        if end_index >= len(history) or start_point.nav <= 0:
             continue
 
+        end_point = history[end_index]
         cagr = (end_point.nav / start_point.nav) ** (1 / years) - 1
 
         # Accumulate all the rolling returns
