@@ -19,7 +19,7 @@
 <div class="portfolio-primary">
     <h2>Performance</h2>
     <table class="summary-table">
-        {% for item in fund.summary[:3] %}
+        {% for item in fund.summary %}
         <tr>
             <td>{{ item.label }}</td>
             <td class="num {{ item.class }}">
@@ -85,7 +85,7 @@
         <tbody>
             {% for r in fund.rolling %}
             <tr class="row-primary">
-                <td>{{ r.years }} Year</td>
+                <td>{{ r.period }}</td>
                 <td class="num negative">
                     {{ r.min_return | percent }}
                 </td>
