@@ -6,7 +6,10 @@
 
 {% block content %}
 
-<h1>{{ fund.display_name }}</h1>
+<header>
+    <h1>{{ fund.display_name }}</h1>
+    <a href="{{ return_url }}">← Home</a>
+</header>
 <div class="portfolio-secondary">
     {{ fund.subtitle }}
     <br>

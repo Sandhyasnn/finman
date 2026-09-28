@@ -1393,7 +1393,7 @@ async def refresh_research_route(request: Request, return_to: str = "/portfolio"
     return RedirectResponse(url=redirect_url, status_code=303)
 
 @app.get("/research/{amfi_code}", response_class=HTMLResponse, dependencies=[Depends(require_login)])
-async def research_dashboard(request: Request, amfi_code: str):
+async def research_dashboard(request: Request, amfi_code: str, return_url: str = "/portfolio"):
     """
     Display cached research for a mutual fund identified by AMFI code.
 
@@ -1424,6 +1424,7 @@ async def research_dashboard(request: Request, amfi_code: str):
         request.app.state.config.template_names.research_template,
         {
             "fund": vm,
+            "return_url": return_url,
         },
     )
 
