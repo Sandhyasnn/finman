@@ -63,7 +63,8 @@ def _ingest_dataset_tax(dataset_name: str, dataset: DatasetConfig) -> DatasetTax
             tax_records.append(tax_record)
 
         except ValueError as exc:
-            message = (f"Tax validation failed for dataset " f"'{dataset_name}', row {row_number}: " f"{exc}")
+            message = (f"Tax validation failed for dataset '{dataset_name}', "f"row {row_number}. "
+                       f"Error: {exc}. " f"Raw Excel row: {row}")            
 
             logger.debug(message)
             raise ValueError(message) from exc

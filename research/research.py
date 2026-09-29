@@ -13,7 +13,9 @@ from research.download_nav_history import (
 
 from research.nav_metrics import (
     calc_trailing_cagr,
+    calc_trailing_return_months,    
     calc_rolling_returns,
+    calc_rolling_returns_months,
     calc_drawdown,
     calc_calendar_year_returns,
     calc_volatility,
@@ -93,13 +95,23 @@ def _calculate_research(amfi_code:str) -> FundResearch:
         amfi_code=history.amfi_code,
         fund_name=history.fund_name,
 
+        return_1m=calc_trailing_return_months(history.history, 1),
+        return_3m=calc_trailing_return_months(history.history, 3),
+        return_6m=calc_trailing_return_months(history.history, 6),
         cagr_1y=_safe_trailing_cagr(history,1),
         cagr_3y=_safe_trailing_cagr(history,3),
         cagr_5y=_safe_trailing_cagr(history,5),
+        cagr_7y=_safe_trailing_cagr(history, 7),
+        cagr_10y=_safe_trailing_cagr(history, 10),
 
+        rolling_1m=calc_rolling_returns_months(history, 1),
+        rolling_3m=calc_rolling_returns_months(history, 3),
+        rolling_6m=calc_rolling_returns_months(history, 6),
         rolling_1y=_safe_rolling_returns(history,1),
         rolling_3y=_safe_rolling_returns(history,3),
         rolling_5y=_safe_rolling_returns(history,5),
+        rolling_7y=_safe_rolling_returns(history, 7),
+        rolling_10y=_safe_rolling_returns(history, 10),
 
         drawdown=calc_drawdown(history),
 
@@ -188,6 +200,10 @@ def _missing_metrics(research: FundResearch) -> list[str]:
         missing.append("3Y CAGR")
     if research.cagr_5y is None:
         missing.append("5Y CAGR")
+    if research.cagr_7y is None:
+        missing.append("7Y CAGR")
+    if research.cagr_10y is None:
+        missing.append("10Y CAGR")
 
     if research.rolling_1y is None:
         missing.append("1Y rolling")
@@ -195,6 +211,10 @@ def _missing_metrics(research: FundResearch) -> list[str]:
         missing.append("3Y rolling")
     if research.rolling_5y is None:
         missing.append("5Y rolling")
+    if research.rolling_7y is None:
+        missing.append("7Y rolling")
+    if research.rolling_10y is None:
+        missing.append("10Y rolling")
 
     return missing
 

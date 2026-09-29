@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, timedelta
+from calendar import monthrange
 from math import pow, sqrt
-from datetime import timedelta
 from statistics import mean, median, stdev
 
 from research.nav_history import (
@@ -11,6 +11,9 @@ from research.nav_history import (
     VolatilityStats
 )
 
+#---------------------------------------------------------------
+# Helper functions
+#---------------------------------------------------------------
 def calculate_cagr(start_nav: float, end_nav: float, years: float) -> float:
     """
     Returns as a fraction, e.g. 0.1714 for 17.14%
@@ -32,6 +35,39 @@ def get_nav_before_date(history, target_date):
 
     return None
 
+def add_months(value: date, months: int) -> date:
+    """
+    Add calendar months while keeping the day valid for the target month.
+
+    Example:
+        31-Jan + 1 month -> 28-Feb
+        31-Jan + 3 months -> 30-Apr
+    """
+    # Converts the current month (1–12) into a 0-indexed format (0–11) by subtracting 1, 
+    # then adds the requested months offset. This makes it easy to handle wrapping across 
+    # multiple years (both forward and backward if months is negative).    
+    month_index = value.month - 1 + months
+    # Uses integer division (// 12) to determine how many full years to add to (or subtract from)
+    # the original year.
+    year = value.year + month_index // 12
+    # Uses modulo arithmetic (% 12) to find the remaining month index, then adds 1 back to 
+    # return to the standard 1–12 month numbering system.
+    month = month_index % 12 + 1
+
+    # monthrange(year, month): A function from Python’s standard calendar module that returns 
+    # a tuple (weekday_of_first_day, number_of_days_in_month). The [1] accesses the maximum 
+    # number of days in that target month.
+    # min(...): This is the secret sauce. If you add 1 month to January 31st, the target month
+    # is February. Since February doesn't have 31 days, monthrange returns 28 (or 29 in a leap year).
+    # The min() function ensures the day drops down to 28 instead of raising a ValueError for an
+    # invalid date.
+    day = min(value.day, monthrange(year, month)[1])
+
+    return date(year, month, day)
+
+#---------------------------------------------------------------
+# Main Calculation / Perofrmance indicators functions
+#---------------------------------------------------------------
 def calc_trailing_cagr(history, years):
     # Calculates the CAGR from the latest available time (as provided in 'hisory')
     # to the last time backward by 'years'. If years=3, then from current to 3 yrs ago CAGR
@@ -46,7 +82,31 @@ def calc_trailing_cagr(history, years):
 
     return calculate_cagr(historical.nav, latest.nav, years)
 
-def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnStats:
+def calc_trailing_return_months(history, months):
+    """
+    Calculate the actual, non-annualised return over a number of calendar months.
+
+    Example:
+        3M return = NAV today / NAV 3 calendar months ago - 1
+    """
+    if not history:
+        return None
+
+    latest = history[0]
+
+    target_date = add_months(latest.date, -months)
+
+    historical = get_nav_before_date(history, target_date)
+
+    if not historical:
+        return None
+
+    if historical.nav <= 0 or latest.nav <= 0:
+        return None
+
+    return (latest.nav / historical.nav) - 1
+
+def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnStats | None:
     '''
     Calculate the CAGR for every possible starting point over the specified period.
     if 'years'=3, then it calculates the CAGR for all the starting point for 3 years, 2010-13, 2011-14,etc
@@ -87,7 +147,8 @@ def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnS
         rolling_returns.append(cagr)
 
     if not rolling_returns:
-        raise ValueError(f"Insufficient history for {years}Y rolling returns")
+        # raise ValueError(f"Insufficient history for {years}Y rolling returns")
+        return None
 
     return RollingReturnStats(
         years=years,
@@ -97,6 +158,57 @@ def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnS
         max_return=max(rolling_returns),
         avg_return=mean(rolling_returns),
         median_return=median(rolling_returns)
+    )
+
+def calc_rolling_returns_months(nav_history: NAVHistory, months: int) -> RollingReturnStats:
+    """
+    Calculate actual (non-annualised) returns for every possible
+    starting point over the specified number of calendar months.
+
+    Example:
+        3M rolling return:
+        start NAV → NAV approximately 3 calendar months later.
+
+    The return is:
+        (end NAV / start NAV) - 1
+    """
+    history = sorted(
+        nav_history.history,
+        key=lambda p: p.date
+    )
+
+    rolling_returns: list[float] = []
+
+    for start_point in history:
+        target_date = add_months(start_point.date, months)
+
+        end_point = None
+
+        for point in history:
+            if point.date >= target_date:
+                end_point = point
+                break
+
+        if end_point is None:
+            continue
+
+        if start_point.nav <= 0 or end_point.nav <= 0:
+            continue
+
+        period_return = (end_point.nav / start_point.nav) - 1
+
+        rolling_returns.append(period_return)
+
+    if not rolling_returns:
+        raise ValueError(f"Insufficient history for {months}M rolling returns")
+
+    return RollingReturnStats(
+        years=0,
+        observations=len(rolling_returns),
+        min_return=min(rolling_returns),
+        max_return=max(rolling_returns),
+        avg_return=mean(rolling_returns),
+        median_return=median(rolling_returns),
     )
 
 def calc_drawdown(nav_history: NAVHistory) -> DrawdownStats:

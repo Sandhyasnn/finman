@@ -39,12 +39,25 @@ class VolatilityStats(BaseModel):
 class FundResearch(BaseModel):
     amfi_code: str
     fund_name: str
+
+    return_1m: float | None = None
+    return_3m: float | None = None
+    return_6m: float | None = None    
     cagr_1y: float | None = None
     cagr_3y: float | None = None
     cagr_5y: float | None = None
+    cagr_7y: float | None = None
+    cagr_10y: float | None = None
+
+    rolling_1m: RollingReturnStats | None = None
+    rolling_3m: RollingReturnStats | None = None
+    rolling_6m: RollingReturnStats | None = None
     rolling_1y: RollingReturnStats | None = None
     rolling_3y: RollingReturnStats | None = None
     rolling_5y: RollingReturnStats | None = None
+    rolling_7y: RollingReturnStats | None = None
+    rolling_10y: RollingReturnStats | None = None
+    
     drawdown: DrawdownStats
     volatility: VolatilityStats
     calendar_returns: list[CalendarYearReturn]

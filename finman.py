@@ -902,18 +902,7 @@ def tax_holding_detail(request: Request, fy: str, owner: str, asset_type: str,
             "asset_type": asset_type,
             "broker": broker,
             "return_url": return_url,
-            "owners": request.app.state.config.frontend.owners,
-            "selected_owner": owner,
-            "selected_fy": fy,
-            "fys": sorted(
-                {
-                    transaction.fy
-                    for transaction in request.app.state.tax
-                },
-                reverse=True,
-            ),
-            "view_url": return_url.split("?")[0],
-                },
+        },
     )
     # return {
     #     "fy": fy,
@@ -1244,9 +1233,14 @@ def build_research_viewmodel(fund, *, generated_at: str | None = None):
     # Performance
     # --------------------------------------------------------
     vm["performance"] = {
+        "return_1m": fund.return_1m,
+        "return_3m": fund.return_3m,
+        "return_6m": fund.return_6m,
         "cagr_1y": fund.cagr_1y,
         "cagr_3y": fund.cagr_3y,
         "cagr_5y": fund.cagr_5y,
+        "cagr_7y": fund.cagr_7y,
+        "cagr_10y": fund.cagr_10y,
     }
 
     # --------------------------------------------------------
@@ -1295,13 +1289,18 @@ def build_research_viewmodel(fund, *, generated_at: str | None = None):
     # --------------------------------------------------------
     rolling = []
 
-    for years, result in [
-        (1, fund.rolling_1y),
-        (3, fund.rolling_3y),
-        (5, fund.rolling_5y),
+    for period, result in [
+        ("1M", fund.rolling_1m),
+        ("3M", fund.rolling_3m),
+        ("6M", fund.rolling_6m),
+        ("1Y", fund.rolling_1y),
+        ("3Y", fund.rolling_3y),
+        ("5Y", fund.rolling_5y),
+        ("7Y", fund.rolling_7y),
+        ("10Y", fund.rolling_10y),        
     ]:
         rolling.append({
-            "years": years,
+            "period": period,
             "available": result is not None,
             "min_return": (
                 result.min_return if result else None

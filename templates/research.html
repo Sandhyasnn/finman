@@ -19,18 +19,34 @@
 <div class="portfolio-primary">
     <h2>Performance</h2>
     <table class="summary-table">
-        {% for item in fund.summary[:3] %}
         <tr>
-            <td>{{ item.label }}</td>
-            <td class="num {{ item.class }}">
-                {% if item.value is not none %}
-                    {{ item.value | percent(2) }} %
-                {% else %}
-                    —
-                {% endif %}
-            </td>
+            <td>1 Month</td>
+            <td>3 Months</td>
+            <td>6 Months</td>
+            <td>1 Year CAGR</td>
+            <td>3 Year CAGR</td>
+            <td>5 Year CAGR</td>
+            <td>7 Year CAGR</td>
+            <td>10 Year CAGR</td>
         </tr>
-        {% endfor %}
+        <tr>
+            <td class ="{{ 'positive' if fund.performance.return_1m is not none and fund.performance.return_1m >= 0 else 'negative' }}">
+                {{ fund.performance.return_1m | percent(2) }}</td>
+            <td  class ="{{ 'positive' if fund.performance.return_3m is not none and fund.performance.return_3m >= 0 else 'negative' }}">
+                {{ fund.performance.return_3m | percent(2) }}</td>
+            <td  class ="{{ 'positive' if fund.performance.return_6m is not none and fund.performance.return_6m >= 0 else 'negative' }}">
+                {{ fund.performance.return_6m | percent(2) }}</td>
+            <td  class ="{{ 'positive' if fund.performance.cagr_1y is not none and fund.performance.cagr_1y >= 0 else 'negative' }}">
+                {{ fund.performance.cagr_1y | percent(2) }}</td>
+            <td  class ="{{ 'positive' if fund.performance.cagr_3y is not none and fund.performance.cagr_3y >= 0 else 'negative' }}">
+                {{ fund.performance.cagr_3y | percent(2) }}</td>
+            <td  class ="{{ 'positive' if fund.performance.cagr_5y is not none and fund.performance.cagr_5y >= 0 else 'negative' }}">
+                {{ fund.performance.cagr_5y | percent(2) }}</td>
+            <td  class ="{{ 'positive' if fund.performance.cagr_7y is not none and fund.performance.cagr_7y >= 0 else 'negative' }}">
+                {{ fund.performance.cagr_7y | percent(2) }}</td>
+            <td  class ="{{ 'positive' if fund.performance.cagr_10y is not none and fund.performance.cagr_10y >= 0 else 'negative' }}">
+                {{ fund.performance.cagr_10y | percent(2) }}</td>
+        </tr>
     </table>
 </div>
 
@@ -75,31 +91,49 @@
     <table class="portfolio-table">
         <thead>
             <tr class="header-primary">
-                <th>Period</th>
-                <th class="num">Min</th>
-                <th class="num">Average</th>
-                <th class="num">Median</th>
-                <th class="num">Maximum</th>
+                <th> </th>
+                {% for r in fund.rolling %}
+                    <th class="num">{{ r.period }}</th>
+                {% endfor %}
             </tr>
         </thead>
+
         <tbody>
-            {% for r in fund.rolling %}
             <tr class="row-primary">
-                <td>{{ r.years }} Year</td>
-                <td class="num negative">
-                    {{ r.min_return | percent }}
-                </td>
-                <td class="num positive">
-                    {{ r.avg_return | percent }}
-                </td>
-                <td class="num positive">
-                    {{ r.median_return | percent }}
-                </td>
-                <td class="num positive">
-                    {{ r.max_return | percent }}
-                </td>
+                <td>Minimum</td>
+                {% for r in fund.rolling %}
+                    <td class ="{{ 'positive' if r.min_return is not none and r.min_return >= 0 else 'negative' }}">
+                        {{ r.min_return | percent }}
+                    </td>
+                {% endfor %}
             </tr>
-            {% endfor %}
+
+            <tr class="row-primary">
+                <td>Average</td>
+                {% for r in fund.rolling %}
+                    <td class ="{{ 'positive' if r.avg_return is not none and r.avg_return >= 0 else 'negative' }}">
+                        {{ r.avg_return | percent }}
+                    </td>
+                {% endfor %}
+            </tr>
+
+            <tr class="row-primary">
+                <td>Median</td>
+                {% for r in fund.rolling %}
+                    <td class ="{{ 'positive' if r.median_return is not none and r.median_return >= 0 else 'negative' }}">
+                        {{ r.median_return | percent }}
+                    </td>
+                {% endfor %}
+            </tr>
+
+            <tr class="row-primary">
+                <td>Maximum</td>
+                {% for r in fund.rolling %}
+                    <td class ="{{ 'positive' if r.max_return is not none and r.max_return >= 0 else 'negative' }}">
+                        {{ r.max_return | percent }}
+                    </td>
+                {% endfor %}
+            </tr>
         </tbody>
     </table>
 </div>

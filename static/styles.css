@@ -395,3 +395,82 @@ footer {
 }
 
 
+/* =========================================================
+"⋮ MORE" DROPDOWN MENU
+========================================================= */
+/* Positioning context for the dropdown. The menu is absolutely positioned relative to this 
+wrapper so it always appears under the "More" button. */
+.menu-wrapper {
+    position: relative;
+}
+
+/* The actual dropdown panel. Hidden by default (display: none). Appears when the .show class is added via JavaScript. */
+.menu-dropdown {
+    position: absolute;
+    top: 110%;
+    right: 0;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    display: none;
+    min-width: 140px;
+    z-index: 1000;
+    padding: 6px 0;
+}
+
+/* Individual links inside the dropdown (Status, Settings, etc.) */
+.menu-dropdown a {
+    display: block;
+    padding: 2px 6px;
+    text-decoration: none;
+    color: var(--text);
+    font-weight: 500;
+    font-size: 13px;
+}
+
+/* Hover effect for dropdown links */
+.menu-dropdown a:hover {
+    background: var(--bg-alt);
+}
+
+/* Makes the dropdown visible when JavaScript adds the .show class */
+.menu-dropdown.show {
+    display: block;
+}
+
+/* Thin horizontal line used to separate groups of menu items */
+.menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 2px 0;
+}
+
+/* Container for the Theme selector section at the bottom of the menu */
+.menu-section {
+    padding: 2px 6px 4px;
+}
+
+/* Label above the theme <select> ("THEME") */
+.menu-section label {
+    display: block;
+    font-size: 11px;
+    margin-bottom: 2px;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* The actual theme dropdown (<select>) */
+.menu-section select {
+    width: 100%;
+    padding: 2px 4px;
+    font-size: 11px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+}
+
+
