@@ -10,6 +10,23 @@ class NAVHistory(BaseModel):
     fund_name: str
     history: list[NAVPoint]
 
+class BenchmarkPoint(BaseModel):
+    date: date
+    tri: float
+class BenchmarkHistory(BaseModel):
+    benchmark: str
+    requested_start: date | None = None
+    requested_end: date | None = None
+    history: list[BenchmarkPoint]
+class RollingOutperformanceStats(BaseModel):
+    years: int
+    observations: int
+    min_outperformance: float
+    max_outperformance: float
+    avg_outperformance: float
+    median_outperformance: float
+    periods_outperformed: int
+    pct_periods_outperformed: float
 class RollingReturnStats(BaseModel):
     years: int
     observations: int
@@ -17,7 +34,48 @@ class RollingReturnStats(BaseModel):
     max_return: float
     avg_return: float
     median_return: float
+class BenchmarkComparison(BaseModel):
+    benchmark: str
 
+    benchmark_return_1m: float | None = None
+    benchmark_return_3m: float | None = None
+    benchmark_return_6m: float | None = None
+
+    benchmark_cagr_1y: float | None = None
+    benchmark_cagr_3y: float | None = None
+    benchmark_cagr_5y: float | None = None
+    benchmark_cagr_7y: float | None = None
+    benchmark_cagr_10y: float | None = None
+
+    outperformance_1m: float | None = None
+    outperformance_3m: float | None = None
+    outperformance_6m: float | None = None
+
+    outperformance_1y: float | None = None
+    outperformance_3y: float | None = None
+    outperformance_5y: float | None = None
+    outperformance_7y: float | None = None
+    outperformance_10y: float | None = None
+
+    benchmark_rolling_1m: RollingReturnStats | None = None
+    benchmark_rolling_3m: RollingReturnStats | None = None
+    benchmark_rolling_6m: RollingReturnStats | None = None
+
+    benchmark_rolling_1y: RollingReturnStats | None = None
+    benchmark_rolling_3y: RollingReturnStats | None = None
+    benchmark_rolling_5y: RollingReturnStats | None = None
+    benchmark_rolling_7y: RollingReturnStats | None = None
+    benchmark_rolling_10y: RollingReturnStats | None = None
+
+    rolling_outperformance_1m: RollingOutperformanceStats | None = None
+    rolling_outperformance_3m: RollingOutperformanceStats | None = None
+    rolling_outperformance_6m: RollingOutperformanceStats | None = None
+
+    rolling_outperformance_1y: RollingOutperformanceStats | None = None
+    rolling_outperformance_3y: RollingOutperformanceStats | None = None
+    rolling_outperformance_5y: RollingOutperformanceStats | None = None
+    rolling_outperformance_7y: RollingOutperformanceStats | None = None
+    rolling_outperformance_10y: RollingOutperformanceStats | None = None 
 class DrawdownStats(BaseModel):
     max_drawdown: float
     current_drawdown: float
@@ -57,6 +115,8 @@ class FundResearch(BaseModel):
     rolling_5y: RollingReturnStats | None = None
     rolling_7y: RollingReturnStats | None = None
     rolling_10y: RollingReturnStats | None = None
+
+    benchmark: BenchmarkComparison | None = None
     
     drawdown: DrawdownStats
     volatility: VolatilityStats

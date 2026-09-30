@@ -2,13 +2,15 @@ from datetime import date, timedelta
 from calendar import monthrange
 from math import pow, sqrt
 from statistics import mean, median, stdev
+import statistics
 
 from research.nav_history import (
     NAVHistory, 
     RollingReturnStats, 
     DrawdownStats, 
     CalendarYearReturn,
-    VolatilityStats
+    VolatilityStats,
+    RollingOutperformanceStats
 )
 
 #---------------------------------------------------------------
@@ -65,22 +67,48 @@ def add_months(value: date, months: int) -> date:
 
     return date(year, month, day)
 
+def _series_value(point):
+    """Return the numeric value from either NAVPoint or BenchmarkPoint."""
+    if hasattr(point, "nav"):
+        return point.nav
+
+    if hasattr(point, "tri"):
+        return point.tri
+
+    raise ValueError("Unsupported research data point")
+
+def _history_points(history):
+    """Return sorted points from either NAVHistory or BenchmarkHistory."""
+    return sorted(history.history, key=lambda p: p.date)
+
+def _point_on_or_before(points, target_date):
+    candidate = None
+    for point in points:
+        if point.date > target_date:
+            break
+        candidate = point
+    return candidate
+
 #---------------------------------------------------------------
 # Main Calculation / Perofrmance indicators functions
 #---------------------------------------------------------------
 def calc_trailing_cagr(history, years):
     # Calculates the CAGR from the latest available time (as provided in 'hisory')
     # to the last time backward by 'years'. If years=3, then from current to 3 yrs ago CAGR
-    latest = history[0]
+    if not history or len(history) < 2:
+        return None
 
+    points = sorted(history, key=lambda p: p.date, reverse=True)
+
+    latest = points[0]
     target_date = (latest.date - timedelta(days=int(years * 365.25)) )
 
-    historical = get_nav_before_date(history, target_date)
+    historical = get_nav_before_date(points, target_date)
 
     if not historical:
         return None
 
-    return calculate_cagr(historical.nav, latest.nav, years)
+    return calculate_cagr(_series_value(historical), _series_value(latest), years)
 
 def calc_trailing_return_months(history, months):
     """
@@ -89,24 +117,28 @@ def calc_trailing_return_months(history, months):
     Example:
         3M return = NAV today / NAV 3 calendar months ago - 1
     """
-    if not history:
+    if not history or len(history) < 2:
         return None
 
-    latest = history[0]
+    points = sorted(history, key=lambda p: p.date, reverse=True)
 
+    latest = points[0]
     target_date = add_months(latest.date, -months)
 
-    historical = get_nav_before_date(history, target_date)
+    historical = get_nav_before_date(points, target_date)
 
     if not historical:
         return None
 
-    if historical.nav <= 0 or latest.nav <= 0:
+    start_value = _series_value(historical)
+    end_value = _series_value(latest)
+
+    if start_value <= 0 or end_value <= 0:
         return None
 
-    return (latest.nav / historical.nav) - 1
+    return (end_value / start_value) - 1
 
-def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnStats | None:
+def calc_rolling_returns(nav_history, years: int,) -> RollingReturnStats | None:
     '''
     Calculate the CAGR for every possible starting point over the specified period.
     if 'years'=3, then it calculates the CAGR for all the starting point for 3 years, 2010-13, 2011-14,etc
@@ -115,7 +147,7 @@ def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnS
 
     The end-date lookup uses a moving pointer rather than scanning the complete history for every start point.
     '''    
-    history = sorted(nav_history.history, key=lambda p: p.date)
+    history = _history_points(nav_history)
 
     rolling_returns: list[float] = []
 
@@ -136,12 +168,18 @@ def calc_rolling_returns(nav_history: NAVHistory, years: int,) -> RollingReturnS
         ):
             end_index += 1
 
-        if end_index >= len(history) or start_point.nav <= 0:
+        if end_index >= len(history):
             continue
 
         end_point = history[end_index]
 
-        cagr = (end_point.nav / start_point.nav) ** (1 / years) - 1
+        start_value = _series_value(start_point)
+        end_value = _series_value(end_point)
+
+        if start_value <= 0 or end_value <= 0:
+            continue
+
+        cagr = (end_value / start_value) ** (1 / years) - 1
 
         # Accumulate all the rolling returns
         rolling_returns.append(cagr)
@@ -172,10 +210,7 @@ def calc_rolling_returns_months(nav_history: NAVHistory, months: int) -> Rolling
     The return is:
         (end NAV / start NAV) - 1
     """
-    history = sorted(
-        nav_history.history,
-        key=lambda p: p.date
-    )
+    history = _history_points(nav_history)
 
     rolling_returns: list[float] = []
 
@@ -192,10 +227,13 @@ def calc_rolling_returns_months(nav_history: NAVHistory, months: int) -> Rolling
         if end_point is None:
             continue
 
-        if start_point.nav <= 0 or end_point.nav <= 0:
+        start_value = _series_value(start_point)
+        end_value = _series_value(end_point)
+
+        if start_value <= 0 or end_value <= 0:
             continue
 
-        period_return = (end_point.nav / start_point.nav) - 1
+        period_return = (end_value / start_value) - 1
 
         rolling_returns.append(period_return)
 
@@ -209,6 +247,124 @@ def calc_rolling_returns_months(nav_history: NAVHistory, months: int) -> Rolling
         max_return=max(rolling_returns),
         avg_return=mean(rolling_returns),
         median_return=median(rolling_returns),
+    )
+
+def _calc_rolling_outperformance(fund_history, benchmark_history, *,
+                                 years: int | None = None, months: int | None = None):
+    fund_points = _history_points(fund_history)
+    benchmark_points = _history_points(benchmark_history)
+
+    if not fund_points or not benchmark_points:
+        return None
+
+    outperformance = []
+
+    fund_end_idx = 0
+    benchmark_start_idx = -1
+    benchmark_end_idx = -1
+
+    for start_point in fund_points:
+        if years is not None:
+            target_date = add_months(start_point.date, years * 12)
+        else:
+            target_date = add_months(start_point.date, months)
+
+        while (
+            fund_end_idx < len(fund_points)
+            and fund_points[fund_end_idx].date < target_date
+        ):
+            fund_end_idx += 1
+
+        if fund_end_idx >= len(fund_points):
+            break
+
+        end_point = fund_points[fund_end_idx]
+
+        while (
+            benchmark_start_idx + 1 < len(benchmark_points)
+            and benchmark_points[benchmark_start_idx + 1].date
+            <= start_point.date
+        ):
+            benchmark_start_idx += 1
+
+        while (
+            benchmark_end_idx + 1 < len(benchmark_points)
+            and benchmark_points[benchmark_end_idx + 1].date
+            <= end_point.date
+        ):
+            benchmark_end_idx += 1
+
+        if benchmark_start_idx < 0 or benchmark_end_idx < 0:
+            continue
+
+        benchmark_start = benchmark_points[benchmark_start_idx]
+        benchmark_end = benchmark_points[benchmark_end_idx]
+
+        if benchmark_start.date > start_point.date:
+            continue
+
+        if benchmark_end.date < end_point.date:
+            continue
+
+        fund_start_value = _series_value(start_point)
+        fund_end_value = _series_value(end_point)
+
+        benchmark_start_value = _series_value(benchmark_start)
+        benchmark_end_value = _series_value(benchmark_end)
+
+        if (
+            fund_start_value <= 0
+            or fund_end_value <= 0
+            or benchmark_start_value <= 0
+            or benchmark_end_value <= 0
+        ):
+            continue
+
+        if years is not None:
+            fund_return = ((fund_end_value / fund_start_value) ** (1 / years)) - 1
+
+            benchmark_return = ((benchmark_end_value / benchmark_start_value) ** (1 / years)) - 1
+        else:
+            fund_return = (fund_end_value / fund_start_value) - 1
+            benchmark_return = (benchmark_end_value / benchmark_start_value) - 1
+
+        outperformance.append(fund_return - benchmark_return)
+
+    if not outperformance:
+        return None
+
+    observations = len(outperformance)
+    periods_outperformed = sum(1 for value in outperformance if value > 0)
+
+    return RollingOutperformanceStats(
+        years=years or 0,
+        observations=observations,
+        min_outperformance=min(outperformance),
+        max_outperformance=max(outperformance),
+        avg_outperformance=sum(outperformance) / observations,
+        median_outperformance=statistics.median(outperformance),
+        periods_outperformed=periods_outperformed,
+        pct_periods_outperformed=(
+            periods_outperformed / observations
+        ),
+    )
+
+def calc_rolling_outperformance(fund_history, benchmark_history, years: int,):
+    return _calc_rolling_outperformance(
+        fund_history,
+        benchmark_history,
+        years=years,
+    )
+
+def calc_rolling_outperformance_months(
+    fund_history,
+    benchmark_history,
+    months: int,
+):
+    return _calc_rolling_outperformance(
+        fund_history,
+        benchmark_history,
+        months=months,
     )
 
 def calc_drawdown(nav_history: NAVHistory) -> DrawdownStats:

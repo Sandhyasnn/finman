@@ -358,11 +358,17 @@ def format_date(value, format="date"):
 
     return value.strftime("%d-%b-%y")
 
+def colour_class(value):
+    if value is None:
+        return ""
+    return "positive" if value >= 0 else "negative"
+
 templates.env.filters["number"] = format_number
 templates.env.filters["decimal"] = format_decimal
 templates.env.filters["percent"] = format_percent
 templates.env.filters["currency"] = format_currency
 templates.env.filters["date"] = format_date
+templates.env.filters["colour_class"] = colour_class
 
 # ------------------------------------------------------------
 # Authentication routes
@@ -1301,25 +1307,119 @@ def build_research_viewmodel(fund, *, generated_at: str | None = None):
     ]:
         rolling.append({
             "period": period,
-            "available": result is not None,
-            "min_return": (
-                result.min_return if result else None
-            ),
-            "avg_return": (
-                result.avg_return if result else None
-            ),
-            "median_return": (
-                result.median_return if result else None
-            ),
-            "max_return": (
-                result.max_return if result else None
-            ),
-            "observations": (
-                result.observations if result else None
-            ),
+            "min_return": (result.min_return if result else None),
+            "avg_return": (result.avg_return if result else None),
+            "median_return": (result.median_return if result else None),
+            "max_return": (result.max_return if result else None),
         })
 
     vm["rolling"] = rolling
+
+    # --------------------------------------------------------
+    # Benchmark Comparison
+    # --------------------------------------------------------
+    benchmark = fund.benchmark
+
+    if benchmark:
+        vm["benchmark"] = {
+            "name": benchmark.benchmark,
+
+            "returns": [
+                {
+                    "period": "1M",
+                    "fund": fund.return_1m,
+                    "benchmark": benchmark.benchmark_return_1m,
+                    "outperformance": benchmark.outperformance_1m,
+                },
+                {
+                    "period": "3M",
+                    "fund": fund.return_3m,
+                    "benchmark": benchmark.benchmark_return_3m,
+                    "outperformance": benchmark.outperformance_3m,
+                },
+                {
+                    "period": "6M",
+                    "fund": fund.return_6m,
+                    "benchmark": benchmark.benchmark_return_6m,
+                    "outperformance": benchmark.outperformance_6m,
+                },
+                {
+                    "period": "1Y",
+                    "fund": fund.cagr_1y,
+                    "benchmark": benchmark.benchmark_cagr_1y,
+                    "outperformance": benchmark.outperformance_1y,
+                },
+                {
+                    "period": "3Y",
+                    "fund": fund.cagr_3y,
+                    "benchmark": benchmark.benchmark_cagr_3y,
+                    "outperformance": benchmark.outperformance_3y,
+                },
+                {
+                    "period": "5Y",
+                    "fund": fund.cagr_5y,
+                    "benchmark": benchmark.benchmark_cagr_5y,
+                    "outperformance": benchmark.outperformance_5y,
+                },
+                {
+                    "period": "7Y",
+                    "fund": fund.cagr_7y,
+                    "benchmark": benchmark.benchmark_cagr_7y,
+                    "outperformance": benchmark.outperformance_7y,
+                },
+                {
+                    "period": "10Y",
+                    "fund": fund.cagr_10y,
+                    "benchmark": benchmark.benchmark_cagr_10y,
+                    "outperformance": benchmark.outperformance_10y,
+                },
+            ],
+
+            "rolling": [
+                {
+                    "period": "1M",
+                    "benchmark": benchmark.benchmark_rolling_1m,
+                    "outperformance": benchmark.rolling_outperformance_1m,
+                },
+                {
+                    "period": "3M",
+                    "benchmark": benchmark.benchmark_rolling_3m,
+                    "outperformance": benchmark.rolling_outperformance_3m,
+                },
+                {
+                    "period": "6M",
+                    "benchmark": benchmark.benchmark_rolling_6m,
+                    "outperformance": benchmark.rolling_outperformance_6m,
+                },
+                {
+                    "period": "1Y",
+                    "benchmark": benchmark.benchmark_rolling_1y,
+                    "outperformance": benchmark.rolling_outperformance_1y,
+                },
+                {
+                    "period": "3Y",
+                    "benchmark": benchmark.benchmark_rolling_3y,
+                    "outperformance": benchmark.rolling_outperformance_3y,
+                },
+                {
+                    "period": "5Y",
+                    "benchmark": benchmark.benchmark_rolling_5y,
+                    "outperformance": benchmark.rolling_outperformance_5y,
+                },
+                {
+                    "period": "7Y",
+                    "benchmark": benchmark.benchmark_rolling_7y,
+                    "outperformance": benchmark.rolling_outperformance_7y,
+                },
+                {
+                    "period": "10Y",
+                    "benchmark": benchmark.benchmark_rolling_10y,
+                    "outperformance": benchmark.rolling_outperformance_10y,
+                },
+            ],
+        }
+    else:
+        vm["benchmark"] = None
 
     # --------------------------------------------------------
     # Calendar Returns
@@ -1340,42 +1440,6 @@ def build_research_viewmodel(fund, *, generated_at: str | None = None):
             })
 
     vm["calendar_returns"] = calendar
-
-    # --------------------------------------------------------
-    # Summary cards
-    # --------------------------------------------------------
-    vm["summary"] = [
-        {
-            "label": "1 Year CAGR",
-            "value": fund.cagr_1y,
-            "class": (
-                "positive"
-                if fund.cagr_1y is not None
-                and fund.cagr_1y >= 0
-                else "negative"
-            ),
-        },
-        {
-            "label": "3 Year CAGR",
-            "value": fund.cagr_3y,
-            "class": (
-                "positive"
-                if fund.cagr_3y is not None
-                and fund.cagr_3y >= 0
-                else "negative"
-            ),
-        },
-        {
-            "label": "5 Year CAGR",
-            "value": fund.cagr_5y,
-            "class": (
-                "positive"
-                if fund.cagr_5y is not None
-                and fund.cagr_5y >= 0
-                else "negative"
-            ),
-        },
-    ]
 
     return vm
 

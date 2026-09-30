@@ -26,6 +26,7 @@ testing/
 config.json
 config.dev.json
 config.prod.json
+api_keys.txt
 
 .env
 .env.*

@@ -1,10 +1,19 @@
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+import threading
 
 import logging
 logger = logging.getLogger("finman")
 
-from research.nav_history import NAVHistory, FundResearch, ResearchIndex, RefreshAllResult
+from research.nav_history import (
+    NAVHistory, 
+    FundResearch,
+    ResearchIndex,
+    RefreshAllResult,
+    BenchmarkPoint,
+    BenchmarkHistory,
+    BenchmarkComparison,
+)
 
 from research.download_nav_history import (
     download_nav_history,
@@ -19,8 +28,11 @@ from research.nav_metrics import (
     calc_drawdown,
     calc_calendar_year_returns,
     calc_volatility,
+    calc_rolling_outperformance,
+    calc_rolling_outperformance_months,
 )
 
+from research.nifty_tri import fetch_nifty_tri
 from ingestion.json_io import read_json, write_json
 
 from market.external_links import load_mf_master
@@ -38,6 +50,8 @@ _RESEARCH_MAX_WORKERS = 5
 # application configuration.
 # ------------------------------------------------------------
 _RESEARCH_INDEX_FLNAME: Path | None = None
+_RESEARCH_BENCHMARK_DIR: Path | None = None
+_BENCHMARK_CACHE_LOCK = threading.Lock()
 
 #----------------------------------------------------
 # Configure the Research filesystem
@@ -50,9 +64,11 @@ def configure_research(config, base_dir: Path):
     Relative paths are resolved against the FinMan base directory.
     This function is called before calling the research sub-system for the first time
     """
-    global _RESEARCH_INDEX_FLNAME
+    global _RESEARCH_INDEX_FLNAME, _RESEARCH_BENCHMARK_DIR
 
     _RESEARCH_INDEX_FLNAME = (base_dir / config.cache.research).resolve()
+    _RESEARCH_BENCHMARK_DIR = _RESEARCH_INDEX_FLNAME.parent / "benchmark_history"
+    _RESEARCH_BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
 
 #----------------------------------------------------
 #Special function to ensure that in case there is no history beyond a period it is managed properly
@@ -73,7 +89,13 @@ def _safe_trailing_cagr(nav_history: NAVHistory, years: int):
     except ValueError:
         # logger.warning("Insufficient history for %sY CAGR: %s [%s]", years, nav_history.fund_name, nav_history.amfi_code)
         return None
-    
+
+def _safe_rolling_returns_months(benchmark_history, months: int):
+    try:
+        return calc_rolling_returns_months(benchmark_history, months)
+    except ValueError:
+        return None
+
 #----------------------------------------------------
 # Internal functions
 #----------------------------------------------------
@@ -85,11 +107,308 @@ def _get_research_index_flname() -> Path:
         raise RuntimeError("Research subsystem has not been configured")
 
     return _RESEARCH_INDEX_FLNAME
-    
+
+def _benchmark_cache_path(benchmark: str) -> Path:
+    if _RESEARCH_BENCHMARK_DIR is None:
+        raise RuntimeError("Research is not configured")
+
+    return _RESEARCH_BENCHMARK_DIR / f"{benchmark}.json"
+
+def _load_benchmark_history(benchmark: str) -> BenchmarkHistory | None:
+    path = _benchmark_cache_path(benchmark)
+
+    if not path.exists():
+        return None
+
+    try:
+        data = read_json(path)
+        if not data:
+            return None
+
+        return BenchmarkHistory.model_validate(data)
+
+    except Exception:
+        logger.exception(
+            "Failed to load benchmark cache: %s",
+            path,
+        )
+        return None
+
+def _save_benchmark_history(history: BenchmarkHistory):
+    path = _benchmark_cache_path(history.benchmark)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    write_json(
+        path,
+        history.model_dump(mode="json"),
+    )
+
+def _ensure_benchmark_history(
+    benchmark: str,
+    start_date: date,
+    end_date: date,
+) -> BenchmarkHistory:
+
+    from research.nifty_tri import fetch_nifty_tri
+
+    with _BENCHMARK_CACHE_LOCK:
+
+        cached = _load_benchmark_history(benchmark)
+
+        if cached is None:
+            df = fetch_nifty_tri(
+                benchmark,
+                start_date,
+                end_date,
+            )
+
+            points = [
+                BenchmarkPoint(
+                    date=row["Date"].date()
+                    if hasattr(row["Date"], "date")
+                    else row["Date"],
+                    tri=float(row["TRI"]),
+                )
+                for _, row in df.iterrows()
+            ]
+
+            result = BenchmarkHistory(
+                benchmark=benchmark,
+                requested_start=start_date,
+                requested_end=end_date,
+                history=points,
+            )
+
+            _save_benchmark_history(result)
+            return result
+
+        # Already covered by the cached request range.
+        if (
+            cached.requested_start is not None
+            and cached.requested_end is not None
+            and cached.requested_start <= start_date
+            and cached.requested_end >= end_date
+        ):
+            return cached
+
+        frames = []
+
+        if cached.requested_start is None or start_date < cached.requested_start:
+            left_end = (
+                cached.requested_start
+                if cached.requested_start is not None
+                else end_date
+            )
+
+            df = fetch_nifty_tri(
+                benchmark,
+                start_date,
+                left_end,
+            )
+
+            frames.append(df)
+
+        if cached.requested_end is None or end_date > cached.requested_end:
+            right_start = (
+                cached.requested_end
+                if cached.requested_end is not None
+                else start_date
+            )
+
+            df = fetch_nifty_tri(
+                benchmark,
+                right_start,
+                end_date,
+            )
+
+            frames.append(df)
+
+        points_by_date = {
+            point.date: point
+            for point in cached.history
+        }
+
+        for df in frames:
+            for _, row in df.iterrows():
+                row_date = (
+                    row["Date"].date()
+                    if hasattr(row["Date"], "date")
+                    else row["Date"]
+                )
+
+                points_by_date[row_date] = BenchmarkPoint(
+                    date=row_date,
+                    tri=float(row["TRI"]),
+                )
+
+        new_start = (
+            min(cached.requested_start, start_date)
+            if cached.requested_start is not None
+            else start_date
+        )
+
+        new_end = (
+            max(cached.requested_end, end_date)
+            if cached.requested_end is not None
+            else end_date
+        )
+
+        result = BenchmarkHistory(
+            benchmark=benchmark,
+            requested_start=new_start,
+            requested_end=new_end,
+            history=sorted(
+                points_by_date.values(),
+                key=lambda p: p.date,
+            ),
+        )
+
+        _save_benchmark_history(result)
+
+        return result
+
+def _get_benchmark_for_amfi(amfi_code: str) -> str | None:
+    mf_master = load_mf_master()
+
+    for entry in mf_master.values():
+        if str(entry.get("amfi_code")) == str(amfi_code):
+            return entry.get("benchmark")
+
+    return None
+
+def _calculate_benchmark_comparison(
+    fund_history: NAVHistory,
+    benchmark_key: str,
+) -> BenchmarkComparison | None:
+
+    from research.nifty_tri import (
+        is_supported_nifty_tri,
+    )
+
+    if not is_supported_nifty_tri(benchmark_key):
+        logger.debug(
+            "Benchmark %s is not currently supported by Nifty TRI loader",
+            benchmark_key,
+        )
+        return None
+
+    fund_dates = [
+        point.date
+        for point in fund_history.history
+    ]
+
+    if not fund_dates:
+        return None
+
+    start_date = min(fund_dates)
+    end_date = max(fund_dates)
+
+    benchmark_history = _ensure_benchmark_history(
+        benchmark_key,
+        start_date,
+        end_date,
+    )
+
+    bh = benchmark_history.history
+
+    benchmark_return_1m = calc_trailing_return_months(bh, 1)
+    benchmark_return_3m = calc_trailing_return_months(bh, 3)
+    benchmark_return_6m = calc_trailing_return_months(bh, 6)
+
+    benchmark_cagr_1y = calc_trailing_cagr(bh, 1)
+    benchmark_cagr_3y = calc_trailing_cagr(bh, 3)
+    benchmark_cagr_5y = calc_trailing_cagr(bh, 5)
+    benchmark_cagr_7y = calc_trailing_cagr(bh, 7)
+    benchmark_cagr_10y = calc_trailing_cagr(bh, 10)
+
+    fund_return_1m = calc_trailing_return_months(
+        fund_history.history, 1
+    )
+    fund_return_3m = calc_trailing_return_months(
+        fund_history.history, 3
+    )
+    fund_return_6m = calc_trailing_return_months(
+        fund_history.history, 6
+    )
+
+    fund_cagr_1y = calc_trailing_cagr(
+        fund_history.history, 1
+    )
+    fund_cagr_3y = calc_trailing_cagr(
+        fund_history.history, 3
+    )
+    fund_cagr_5y = calc_trailing_cagr(
+        fund_history.history, 5
+    )
+    fund_cagr_7y = calc_trailing_cagr(
+        fund_history.history, 7
+    )
+    fund_cagr_10y = calc_trailing_cagr(
+        fund_history.history, 10
+    )
+
+    def diff(fund_value, benchmark_value):
+        if fund_value is None or benchmark_value is None:
+            return None
+        return fund_value - benchmark_value
+
+    return BenchmarkComparison(
+        benchmark=benchmark_key,
+
+        benchmark_return_1m=benchmark_return_1m,
+        benchmark_return_3m=benchmark_return_3m,
+        benchmark_return_6m=benchmark_return_6m,
+
+        benchmark_cagr_1y=benchmark_cagr_1y,
+        benchmark_cagr_3y=benchmark_cagr_3y,
+        benchmark_cagr_5y=benchmark_cagr_5y,
+        benchmark_cagr_7y=benchmark_cagr_7y,
+        benchmark_cagr_10y=benchmark_cagr_10y,
+
+        outperformance_1m=diff(fund_return_1m, benchmark_return_1m),
+        outperformance_3m=diff(fund_return_3m, benchmark_return_3m),
+        outperformance_6m=diff(fund_return_6m, benchmark_return_6m),
+        outperformance_1y=diff(fund_cagr_1y, benchmark_cagr_1y),
+        outperformance_3y=diff(fund_cagr_3y, benchmark_cagr_3y),
+        outperformance_5y=diff(fund_cagr_5y, benchmark_cagr_5y),
+        outperformance_7y=diff(fund_cagr_7y, benchmark_cagr_7y),
+        outperformance_10y=diff(fund_cagr_10y, benchmark_cagr_10y),
+
+        benchmark_rolling_1m=_safe_rolling_returns_months(benchmark_history, 1),
+        benchmark_rolling_3m=_safe_rolling_returns_months(benchmark_history, 3),
+        benchmark_rolling_6m=_safe_rolling_returns_months(benchmark_history, 6),
+
+        benchmark_rolling_1y=_safe_rolling_returns(benchmark_history, 1),
+        benchmark_rolling_3y=_safe_rolling_returns(benchmark_history, 3),
+        benchmark_rolling_5y=_safe_rolling_returns(benchmark_history, 5),
+        benchmark_rolling_7y=_safe_rolling_returns(benchmark_history, 7),
+        benchmark_rolling_10y=_safe_rolling_returns(benchmark_history, 10),
+
+        rolling_outperformance_1m=calc_rolling_outperformance_months(fund_history,benchmark_history,1),
+        rolling_outperformance_3m=calc_rolling_outperformance_months(fund_history,benchmark_history,3),
+        rolling_outperformance_6m=calc_rolling_outperformance_months(fund_history,benchmark_history,6),
+
+        rolling_outperformance_1y=calc_rolling_outperformance(fund_history,benchmark_history,1),
+        rolling_outperformance_3y=calc_rolling_outperformance(fund_history,benchmark_history,3),
+        rolling_outperformance_5y=calc_rolling_outperformance(fund_history,benchmark_history,5),
+        rolling_outperformance_7y=calc_rolling_outperformance(fund_history,benchmark_history,7),
+        rolling_outperformance_10y=calc_rolling_outperformance(fund_history,benchmark_history,10),
+    )
+
 def _calculate_research(amfi_code:str) -> FundResearch:
     # Download NAV history and calculate all research metrics for one amfi_code
     history = download_nav_history(amfi_code)
     save_nav_history(history)
+
+    benchmark_comparison = None
+    benchmark_key = _get_benchmark_for_amfi(amfi_code)
+    if benchmark_key:
+        try:
+            benchmark_comparison = _calculate_benchmark_comparison(history, benchmark_key)
+        except Exception:
+            logger.exception("Benchmark comparison failed for AMFI %s benchmark=%s",
+                             amfi_code, benchmark_key)
 
     research = FundResearch(
         amfi_code=history.amfi_code,
@@ -118,6 +437,8 @@ def _calculate_research(amfi_code:str) -> FundResearch:
         volatility=calc_volatility(history),
 
         calendar_returns=calc_calendar_year_returns(history),
+
+        benchmark=benchmark_comparison,
     )
 
     def pct(value):
@@ -143,7 +464,7 @@ def _calculate_research(amfi_code:str) -> FundResearch:
     return research
 
     return research
-
+    
 def _update_research_index(research_index: ResearchIndex, research: FundResearch) -> None:
     # Update the in-memory research index with the latest fund research.
     research_index.generated_at = datetime.now()

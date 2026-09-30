@@ -19,59 +19,95 @@
 <div class="portfolio-primary">
     <h2>Performance</h2>
     <table class="summary-table">
-        <tr>
-            <td>1 Month</td>
-            <td>3 Months</td>
-            <td>6 Months</td>
-            <td>1 Year CAGR</td>
-            <td>3 Year CAGR</td>
-            <td>5 Year CAGR</td>
-            <td>7 Year CAGR</td>
-            <td>10 Year CAGR</td>
-        </tr>
-        <tr>
-            <td class ="{{ 'positive' if fund.performance.return_1m is not none and fund.performance.return_1m >= 0 else 'negative' }}">
-                {{ fund.performance.return_1m | percent(2) }}</td>
-            <td  class ="{{ 'positive' if fund.performance.return_3m is not none and fund.performance.return_3m >= 0 else 'negative' }}">
-                {{ fund.performance.return_3m | percent(2) }}</td>
-            <td  class ="{{ 'positive' if fund.performance.return_6m is not none and fund.performance.return_6m >= 0 else 'negative' }}">
-                {{ fund.performance.return_6m | percent(2) }}</td>
-            <td  class ="{{ 'positive' if fund.performance.cagr_1y is not none and fund.performance.cagr_1y >= 0 else 'negative' }}">
-                {{ fund.performance.cagr_1y | percent(2) }}</td>
-            <td  class ="{{ 'positive' if fund.performance.cagr_3y is not none and fund.performance.cagr_3y >= 0 else 'negative' }}">
-                {{ fund.performance.cagr_3y | percent(2) }}</td>
-            <td  class ="{{ 'positive' if fund.performance.cagr_5y is not none and fund.performance.cagr_5y >= 0 else 'negative' }}">
-                {{ fund.performance.cagr_5y | percent(2) }}</td>
-            <td  class ="{{ 'positive' if fund.performance.cagr_7y is not none and fund.performance.cagr_7y >= 0 else 'negative' }}">
-                {{ fund.performance.cagr_7y | percent(2) }}</td>
-            <td  class ="{{ 'positive' if fund.performance.cagr_10y is not none and fund.performance.cagr_10y >= 0 else 'negative' }}">
-                {{ fund.performance.cagr_10y | percent(2) }}</td>
-        </tr>
+        <thead>
+            <tr class=""header-primary">
+                <td>Fund Name</td>
+                <td>1 Month</td>
+                <td>3 Months</td>
+                <td>6 Months</td>
+                <td>1 Year CAGR</td>
+                <td>3 Year CAGR</td>
+                <td>5 Year CAGR</td>
+                <td>7 Year CAGR</td>
+                <td>10 Year CAGR</td>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Fund performance - always displayed -->
+            <tr class="row-primary">
+                <td>{{ fund.display_name }}</td>
+                <td  class ="{{ fund.performance.return_1m | colour_class }}">
+                    {{ fund.performance.return_1m | percent(2) }}</td>
+                <td  class ="{{ fund.performance.return_3m | colour_class }}">
+                    {{ fund.performance.return_3m | percent(2) }}</td>
+                <td  class ="{{ fund.performance.return_6m | colour_class }}">
+                    {{ fund.performance.return_6m | percent(2) }}</td>
+                <td  class ="{{ fund.performance.cagr_1y | colour_class }}">
+                    {{ fund.performance.cagr_1y | percent(2) }}</td>
+                <td  class ="{{ fund.performance.cagr_3y | colour_class }}">
+                    {{ fund.performance.cagr_3y | percent(2) }}</td>
+                <td  class ="{{ fund.performance.cagr_5y | colour_class }}">
+                    {{ fund.performance.cagr_5y | percent(2) }}</td>
+                <td  class ="{{ fund.performance.cagr_7y | colour_class }}">
+                    {{ fund.performance.cagr_7y | percent(2) }}</td>
+                <td  class ="{{ fund.performance.cagr_10y | colour_class }}">
+                    {{ fund.performance.cagr_10y | percent(2) }}</td>
+            </tr>
+            {% if fund.benchmark %}
+            <!-- Benchmark -->
+            <tr class="row-primary">
+                <td>{{ fund.benchmark.name }}</td>
+                {% for r in fund.benchmark.returns %}
+                    <td class="{{ r.benchmark | colour_class }}">
+                        {{ r.benchmark | percent(2) }}
+                    </td>
+                {% endfor %}
+            </tr>
+
+            <!-- Outperformance -->
+            <tr class="row-primary">
+                <td>Outperformance</td>
+                {% for r in fund.benchmark.returns %}
+                    <td class="{{ r.outperformance | colour_class }}">
+                        {{ r.outperformance | percent(2) }}
+                    </td>
+                {% endfor %}
+            </tr>            
+            {% endif %}
+        </tbody>
     </table>
 </div>
-
+<hr/>
 <div class="portfolio-primary">
     <h2>Risk</h2>
     <table class="summary-table">
         <tr>
             <td>Volatility</td>
-            <td class="num">{{ fund.risk.volatility | percent(2) }}</td>
+            <td class="{{ fund.risk.volatility | colour_class }}">
+                {{ fund.risk.volatility | percent(2) }}</td>
         </tr>
         <tr>
             <td>Maximum Drawdown</td>
-            <td class="num negative">{{ fund.risk.max_drawdown | percent(2) }}</td>
+            <td class="{{ fund.risk.max_drawdown | colour_class }}">
+                {{ fund.risk.max_drawdown | percent(2) }}
+            </td>        
         </tr>
         <tr>
             <td>Current Drawdown</td>
-            <td class="num negative">{{ fund.risk.current_drawdown | percent(2) }}</td>
+            <td  class="{{ fund.risk.current_drawdown | colour_class }}">
+                {{ fund.risk.current_drawdown | percent(2) }}</td>
         </tr>
         <tr>
             <td>Peak NAV</td>
-            <td class="num">{{ fund.risk.peak_nav }}</td>
+            <td  class="{{ fund.risk.peak_nav | colour_class }}">
+                {{ fund.risk.peak_nav }}
+            </td>
         </tr>
         <tr>
             <td>Trough NAV</td>
-            <td class="num">{{ fund.risk.trough_nav }}</td>
+            <td  class="{{ fund.risk.trough_nav | colour_class }}">
+                {{ fund.risk.trough_nav }}
+            </td>
         </tr>
         <tr>
             <td>Peak Date</td>
@@ -85,7 +121,7 @@
         </tr>
     </table>
 </div>
-
+<hr/>
 <div class="portfolio-primary">
     <h2>Rolling Returns</h2>
     <table class="portfolio-table">
@@ -100,44 +136,85 @@
 
         <tbody>
             <tr class="row-primary">
-                <td>Minimum</td>
+                <td>Fund Minimum</td>
                 {% for r in fund.rolling %}
-                    <td class ="{{ 'positive' if r.min_return is not none and r.min_return >= 0 else 'negative' }}">
-                        {{ r.min_return | percent }}
-                    </td>
+                    <td class ="{{ r.min_return | colour_class }}">{{ r.min_return | percent }}</td>
+                {% endfor %}
+            </tr>
+            <tr class="row-primary">
+                <td>Fund Average</td>
+                {% for r in fund.rolling %}
+                    <td class ="{{ r.avg_return | colour_class }}">{{ r.avg_return | percent }}</td>
+                {% endfor %}
+            </tr>
+            <tr class="row-primary">
+                <td>Fund Median</td>
+                {% for r in fund.rolling %}
+                    <td class ="{{ r.median_return | colour_class }}">{{ r.median_return | percent }}</td>
+                {% endfor %}
+            </tr>
+            <tr class="row-primary">
+                <td>Fund Maximum</td>
+                {% for r in fund.rolling %}
+                    <td class ="{{ r.max_return | colour_class }}">{{ r.max_return | percent }}</td>
                 {% endfor %}
             </tr>
 
-            <tr class="row-primary">
-                <td>Average</td>
-                {% for r in fund.rolling %}
-                    <td class ="{{ 'positive' if r.avg_return is not none and r.avg_return >= 0 else 'negative' }}">
-                        {{ r.avg_return | percent }}
-                    </td>
-                {% endfor %}
-            </tr>
+            {% if fund.benchmark %}
+                <tr class="row-primary">
+                    <td>Benchmark Average</td>
+                    {% for r in fund.benchmark.rolling %}
+                        <td class="{{ r.benchmark.avg_return | colour_class }}">
+                            {% if r.benchmark %}
+                                {{ r.benchmark.avg_return | percent(2) }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+                <tr class="row-primary">
+                    <td>Outperformance Average</td>
+                    {% for r in fund.benchmark.rolling %}
+                        <td class="{{ r.outperformance.avg_outperformance | colour_class }}">
+                            {% if r.outperformance %}
+                                {{ r.outperformance.avg_outperformance | percent(2) }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+                <tr class="row-primary">
+                    <td>Outperformance Median</td>
+                    {% for r in fund.benchmark.rolling %}
+                        <td class="{{ r.outperformance.median_outperformance | colour_class }}">
+                            {% if r.outperformance %}
+                                {{ r.outperformance.median_outperformance | percent(2) }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+                <tr class="row-primary">
+                    <td>Fund &gt; Benchmark</td>
+                    {% for r in fund.benchmark.rolling %}
+                        <td class="{{ r.outperformance.pct_periods_outperformed | colour_class }}">
+                            {% if r.outperformance %}
+                                {{ (r.outperformance.pct_periods_outperformed * 100) | round(1) }}%
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
 
-            <tr class="row-primary">
-                <td>Median</td>
-                {% for r in fund.rolling %}
-                    <td class ="{{ 'positive' if r.median_return is not none and r.median_return >= 0 else 'negative' }}">
-                        {{ r.median_return | percent }}
-                    </td>
-                {% endfor %}
-            </tr>
-
-            <tr class="row-primary">
-                <td>Maximum</td>
-                {% for r in fund.rolling %}
-                    <td class ="{{ 'positive' if r.max_return is not none and r.max_return >= 0 else 'negative' }}">
-                        {{ r.max_return | percent }}
-                    </td>
-                {% endfor %}
-            </tr>
+        {% endif %}
         </tbody>
     </table>
 </div>
-
+<hr/>
 <div class="portfolio-primary">
     <h2>Calendar Returns</h2>
     <table class="portfolio-table">
@@ -153,21 +230,9 @@
             {% for r in fund.calendar_returns %}
             <tr class="row-primary">
                 <td>{{ r.year }}</td>
-                <td class="num
-                    {% if r.return_pct >= 0 %}
-                        positive
-                    {% else %}
-                        negative
-                    {% endif %}
-                ">
-                    {{ r.return_pct | percent(2) }}
-                </td>
-                <td class="num">
-                    {{ r.start_nav }}
-                </td>
-                <td class="num">
-                    {{ r.end_nav }}
-                </td>
+                <td class="{{ r.return_pct | colour_class }}">{{ r.return_pct | percent(2) }}</td>
+                <td class="{{ r.start_nav | colour_class }}">{{ r.start_nav }}</td>
+                <td class="{{ r.end_nav | colour_class }}">{{ r.end_nav }}</td>
             </tr>
             {% endfor %}
         </tbody>
