@@ -20,6 +20,7 @@ STATIC_DIR = BASE_DIR / "static"
 # STOCKLoad the MF Names to Value Research / Morning Star / Google finance links
 # --------------------------------------------------------------------------------------
 _MF_MASTER: Dict[str, dict] | None = None
+_BENCHMARK_MASTER: Dict[str, dict] | None = None
 # External-link URL templates loaded once from the application's
 # already-validated configuration.
 _EXTERNAL_LINK_CONFIG: Dict[str, dict] = {}
@@ -57,6 +58,26 @@ def load_mf_master() -> Dict[str, dict]:
         _MF_MASTER = raw.get("funds", {})
         
     return _MF_MASTER
+
+def load_benchmark_master() -> Dict[str, dict]:
+    """
+    Load the benchmark catalogue from mf_master.json.
+
+    Each benchmark entry contains the provider, source name and
+    display name used by the research subsystem.
+    """
+    global _BENCHMARK_MASTER
+
+    if _BENCHMARK_MASTER is None:
+        path = STATIC_DIR / "mf_master.json"
+
+        if not path.exists():
+            raise FileNotFoundError(f"mf_master.json not found at {path}")
+
+        raw = read_json(path)
+        _BENCHMARK_MASTER = raw.get("benchmarks", {})
+
+    return _BENCHMARK_MASTER
 
 # -------------------------------------------------
 # STOCK LINKS (INDIA)
