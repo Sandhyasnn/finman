@@ -35,7 +35,7 @@ from research.nav_metrics import (
 from research.nifty_tri import fetch_nifty_tri
 from ingestion.json_io import read_json, write_json
 
-from market.external_links import load_mf_master
+from market.external_links import load_mf_master, load_benchmark_master
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -123,6 +123,7 @@ def _save_benchmark_history(history: BenchmarkHistory):
 
 def _ensure_benchmark_history(
     benchmark: str,
+    source_name: str,
     start_date: date,
     end_date: date,
 ) -> BenchmarkHistory:
@@ -130,7 +131,7 @@ def _ensure_benchmark_history(
         cached = _load_benchmark_history(benchmark)
 
         if cached is None:
-            df = fetch_nifty_tri(benchmark, start_date, end_date)
+            df = fetch_nifty_tri(source_name, start_date, end_date)
 
             points = [
                 BenchmarkPoint(date=row["Date"].date()
@@ -161,7 +162,7 @@ def _ensure_benchmark_history(
                 else end_date
             )
 
-            df = fetch_nifty_tri(benchmark, start_date, left_end)
+            df = fetch_nifty_tri(source_name, start_date, left_end)
 
             frames.append(df)
 
@@ -172,7 +173,7 @@ def _ensure_benchmark_history(
                 else start_date
             )
 
-            df = fetch_nifty_tri(benchmark, right_start, end_date)
+            df = fetch_nifty_tri(source_name, right_start, end_date)
 
             frames.append(df)
 
@@ -254,16 +255,47 @@ def _get_benchmark_for_amfi(amfi_code: str) -> str | None:
     """
     return _get_benchmark_map().get(str(amfi_code))
 
+@lru_cache(maxsize=1)
+def _get_benchmark_definition(benchmark_key: str) -> dict | None:
+    """
+    Return the benchmark definition from the central benchmark catalogue.
+    """
+    return load_benchmark_master().get(benchmark_key)
+
 # ============================================================
 # Research calculations
 # ============================================================
-def _calculate_benchmark_comparison(fund_history: NAVHistory, benchmark_key: str, 
-                                    fund_metrics: dict,) -> BenchmarkComparison | None:
+def _calculate_benchmark_comparison(
+    fund_history: NAVHistory,
+    benchmark_key: str,
+    fund_metrics: dict,
+) -> BenchmarkComparison | None:
 
-    from research.nifty_tri import (is_supported_nifty_tri,)
+    benchmark = _get_benchmark_definition(benchmark_key)
 
-    if not is_supported_nifty_tri(benchmark_key):
-        logger.debug("Benchmark %s is not currently supported by Nifty TRI loader", benchmark_key,)
+    if not benchmark:
+        logger.debug(
+            "Benchmark %s is not configured in benchmark catalogue",
+            benchmark_key,
+        )
+        return None
+
+    provider = benchmark.get("provider")
+    source_name = benchmark.get("source_name")
+
+    if provider != "nifty_tri":
+        logger.debug(
+            "Benchmark %s uses unsupported provider: %s",
+            benchmark_key,
+            provider,
+        )
+        return None
+
+    if not source_name:
+        logger.debug(
+            "Benchmark %s has no source_name configured",
+            benchmark_key,
+        )
         return None
 
     fund_dates = [
@@ -277,7 +309,12 @@ def _calculate_benchmark_comparison(fund_history: NAVHistory, benchmark_key: str
     start_date = min(fund_dates)
     end_date = max(fund_dates)
 
-    benchmark_history = _ensure_benchmark_history(benchmark_key, start_date, end_date)
+    benchmark_history = _ensure_benchmark_history(
+        benchmark_key,
+        source_name,
+        start_date,
+        end_date,
+    )
 
     bh = benchmark_history.history
 
@@ -298,6 +335,7 @@ def _calculate_benchmark_comparison(fund_history: NAVHistory, benchmark_key: str
 
     return BenchmarkComparison(
         benchmark=benchmark_key,
+        benchmark_name=benchmark.get("display_name"),
 
         benchmark_return_1m=benchmark_return_1m,
         benchmark_return_3m=benchmark_return_3m,
@@ -507,6 +545,8 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
     """    
     success = 0
     failed = 0
+    benchmark_available = 0
+    benchmark_unavailable = 0
 
     successful_amfi_codes = []
     failed_amfi_codes = []
@@ -598,6 +638,11 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
                 _update_research_index(index, research)
 
                 success += 1
+
+                if research.benchmark is not None:
+                    benchmark_available += 1
+                else:
+                    benchmark_unavailable += 1
                 successful_amfi_codes.append(amfi_code)
 
             except Exception as ex:
@@ -616,7 +661,17 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
     if success > 0:
         _save_research_index(index)
 
-    logger.info("Research refresh complete: %d/%d successful, %d failed", success, total, failed)
+    logger.info(
+        "Research refresh complete: %d/%d successful, %d failed",
+        success,
+        total,
+        failed,
+    )
+    logger.info(
+        "Research benchmark comparison: %d available, %d unavailable",
+        benchmark_available,
+        benchmark_unavailable,
+    )
     if insufficient_history:
         details = "; ".join(
             f"{fund}: {', '.join(metrics)}"
@@ -629,6 +684,9 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
         total=total,
         success=success,
         failed=failed,
+        benchmark_available=benchmark_available,
+        benchmark_unavailable=benchmark_unavailable,
+        insufficient_history=len(insufficient_history),
         successful_amfi_codes=successful_amfi_codes,
         failed_amfi_codes=failed_amfi_codes,
     )
