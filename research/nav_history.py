@@ -36,6 +36,7 @@ class RollingReturnStats(BaseModel):
     median_return: float
 class BenchmarkComparison(BaseModel):
     benchmark: str
+    benchmark_name: str | None = None
 
     benchmark_return_1m: float | None = None
     benchmark_return_3m: float | None = None
@@ -130,5 +131,8 @@ class RefreshAllResult(BaseModel):
     total: int
     success: int
     failed: int
+    benchmark_available: int
+    benchmark_unavailable: int
+    insufficient_history: int
     successful_amfi_codes: list[str]
     failed_amfi_codes: list[str]
