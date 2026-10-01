@@ -22,33 +22,14 @@ HEADERS = {
 }
 
 
-# FinMan benchmark name -> Nifty index name
-NIFTY_TRI_INDEXES = {
-    "NIFTY_MIDCAP150_TRI": "NIFTY MIDCAP 150",
-    "NIFTY50_TRI": "NIFTY 50",
-    "NIFTY500_TRI": "NIFTY 500",
-    "NIFTY_SMALLCAP250_TRI": "NIFTY SMALLCAP 250",
-    "NIFTY_LARGEMIDCAP250_TRI": "NIFTY LARGE MIDCAP 250",
-}
+def fetch_nifty_tri(
+    source_name: str,
+    start_date: date,
+    end_date: date,
+    chunk_days: int = 350,
+) -> pd.DataFrame:
 
-
-NIFTY_TRI_DISPLAY_NAMES = {
-    "NIFTY50_TRI": "NIFTY 50 TRI",
-    "NIFTY500_TRI": "NIFTY 500 TRI",
-    "NIFTY_SMALLCAP250_TRI": "NIFTY Smallcap 250 TRI",
-    "NIFTY_LARGEMIDCAP250_TRI": "NIFTY LargeMidcap 250 TRI",
-    "NIFTY_MIDCAP150_TRI": "NIFTY Midcap 150 TRI",
-}
-
-def is_supported_nifty_tri(benchmark: str) -> bool:
-    return benchmark in NIFTY_TRI_INDEXES
-
-def fetch_nifty_tri(benchmark: str, start_date: date, end_date: date, chunk_days: int = 350) -> pd.DataFrame:
-
-    if benchmark not in NIFTY_TRI_INDEXES:
-        raise ValueError(f"Unsupported Nifty TRI benchmark: {benchmark}")
-
-    index_name = NIFTY_TRI_INDEXES[benchmark]
+    index_name = source_name
 
     frames = []
     current = start_date
@@ -74,7 +55,7 @@ def fetch_nifty_tri(benchmark: str, start_date: date, end_date: date, chunk_days
         data = json.loads(response.text)
 
         if not isinstance(data, list):
-            raise RuntimeError(f"Unexpected TRI response for {benchmark}")
+            raise RuntimeError(f"Unexpected TRI response for {source_name}")
 
         if data:
             df = pd.DataFrame(data)
