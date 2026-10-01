@@ -121,12 +121,8 @@ def _save_benchmark_history(history: BenchmarkHistory):
         history.model_dump(mode="json"),
     )
 
-def _ensure_benchmark_history(
-    benchmark: str,
-    source_name: str,
-    start_date: date,
-    end_date: date,
-) -> BenchmarkHistory:
+def _ensure_benchmark_history(benchmark: str, source_name: str, start_date: date,
+                              end_date: date) -> BenchmarkHistory:
     with _BENCHMARK_CACHE_LOCK:
         cached = _load_benchmark_history(benchmark)
 
@@ -246,6 +242,16 @@ def _get_benchmark_map():
         if entry.get("amfi_code")
     }
 
+@lru_cache(maxsize=1)
+def _get_benchmark_definition(benchmark_key: str) -> dict | None:
+    """
+    Return the configured definition for a benchmark.
+
+    The benchmark catalogue contains the provider, source name,
+    and display name used by the research subsystem.
+    """
+    return load_benchmark_master().get(benchmark_key)
+
 def _get_benchmark_for_amfi(amfi_code: str) -> str | None:
     """
     Return the benchmark configured for an AMFI code.
@@ -255,47 +261,23 @@ def _get_benchmark_for_amfi(amfi_code: str) -> str | None:
     """
     return _get_benchmark_map().get(str(amfi_code))
 
-@lru_cache(maxsize=1)
-def _get_benchmark_definition(benchmark_key: str) -> dict | None:
-    """
-    Return the benchmark definition from the central benchmark catalogue.
-    """
-    return load_benchmark_master().get(benchmark_key)
-
 # ============================================================
 # Research calculations
 # ============================================================
-def _calculate_benchmark_comparison(
-    fund_history: NAVHistory,
-    benchmark_key: str,
-    fund_metrics: dict,
-) -> BenchmarkComparison | None:
-
+def _calculate_benchmark_comparison(fund_history: NAVHistory, benchmark_key: str, 
+                                    fund_metrics: dict,) -> BenchmarkComparison | None:
     benchmark = _get_benchmark_definition(benchmark_key)
-
     if not benchmark:
-        logger.debug(
-            "Benchmark %s is not configured in benchmark catalogue",
-            benchmark_key,
-        )
+        logger.debug("Benchmark %s is not configured in benchmark catalogue", benchmark_key)
         return None
 
     provider = benchmark.get("provider")
     source_name = benchmark.get("source_name")
-
     if provider != "nifty_tri":
-        logger.debug(
-            "Benchmark %s uses unsupported provider: %s",
-            benchmark_key,
-            provider,
-        )
+        logger.debug("Benchmark %s uses unsupported provider: %s", benchmark_key, provider)
         return None
-
     if not source_name:
-        logger.debug(
-            "Benchmark %s has no source_name configured",
-            benchmark_key,
-        )
+        logger.debug("Benchmark %s has no source_name configured", benchmark_key)
         return None
 
     fund_dates = [
@@ -309,12 +291,7 @@ def _calculate_benchmark_comparison(
     start_date = min(fund_dates)
     end_date = max(fund_dates)
 
-    benchmark_history = _ensure_benchmark_history(
-        benchmark_key,
-        source_name,
-        start_date,
-        end_date,
-    )
+    benchmark_history = _ensure_benchmark_history(benchmark_key, source_name, start_date, end_date)
 
     bh = benchmark_history.history
 
@@ -545,8 +522,10 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
     """    
     success = 0
     failed = 0
+
     benchmark_available = 0
     benchmark_unavailable = 0
+    insufficient_history_count = 0    
 
     successful_amfi_codes = []
     failed_amfi_codes = []
@@ -629,66 +608,60 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
                 # Wait for this particular fund if it is not finished yet.
                 research = future.result()
 
+                # ------------------------------------------------------------
+                # Benchmark comparison status
+                # ------------------------------------------------------------
+                if research.benchmark is not None:
+                    benchmark_available += 1
+                else:
+                    benchmark_unavailable += 1
+
+                # ------------------------------------------------------------
+                # Insufficient history status
+                # ------------------------------------------------------------
                 missing = _missing_metrics(research)
 
                 if missing:
                     insufficient_history[research.fund_name] = missing
+                    insufficient_history_count += 1
 
                 # Only the main thread updates the shared ResearchIndex.
                 _update_research_index(index, research)
 
                 success += 1
-
-                if research.benchmark is not None:
-                    benchmark_available += 1
-                else:
-                    benchmark_unavailable += 1
                 successful_amfi_codes.append(amfi_code)
 
             except Exception as ex:
                 failed += 1
                 failed_amfi_codes.append(amfi_code)
 
-                logger.exception(
-                    "Research refresh failed [%d/%d]: %s - %s",
-                    i,
-                    total,
-                    amfi_code,
-                    ex
-                )
+                logger.exception("Research refresh failed [%d/%d]: %s - %s", i, total, amfi_code, ex)
 
     # Save the index once after all funds have been processed.
     if success > 0:
         _save_research_index(index)
 
-    logger.info(
-        "Research refresh complete: %d/%d successful, %d failed",
-        success,
-        total,
-        failed,
-    )
-    logger.info(
-        "Research benchmark comparison: %d available, %d unavailable",
-        benchmark_available,
-        benchmark_unavailable,
-    )
+    logger.info("Research refresh complete: %d/%d successful, %d failed", success, total, failed)
+    logger.info("Research benchmark comparison: %d available, %d unavailable", benchmark_available,
+                benchmark_unavailable)
     if insufficient_history:
         details = "; ".join(
             f"{fund}: {', '.join(metrics)}"
             for fund, metrics in insufficient_history.items()
         )
-        logger.info("Research metrics unavailable for %d funds: %s", len(insufficient_history), details)
+        logger.info("Research historical metrics unavailable for %d funds: %s", 
+                    insufficient_history_count,details)        
     if failed:
         logger.warning("Research refresh failed AMFI codes: %s", ", ".join(failed_amfi_codes))
     return RefreshAllResult(
         total=total,
         success=success,
         failed=failed,
-        benchmark_available=benchmark_available,
-        benchmark_unavailable=benchmark_unavailable,
-        insufficient_history=len(insufficient_history),
         successful_amfi_codes=successful_amfi_codes,
         failed_amfi_codes=failed_amfi_codes,
+        benchmark_available=benchmark_available,
+        benchmark_unavailable=benchmark_unavailable,
+        insufficient_history=insufficient_history_count,
     )
 
 def run_research_refresh():

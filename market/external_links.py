@@ -20,7 +20,7 @@ STATIC_DIR = BASE_DIR / "static"
 # STOCKLoad the MF Names to Value Research / Morning Star / Google finance links
 # --------------------------------------------------------------------------------------
 _MF_MASTER: Dict[str, dict] | None = None
-_BENCHMARK_MASTER: Dict[str, dict] | None = None
+
 # External-link URL templates loaded once from the application's
 # already-validated configuration.
 _EXTERNAL_LINK_CONFIG: Dict[str, dict] = {}
@@ -38,13 +38,14 @@ def configure_external_links(config: dict) -> None:
     global _EXTERNAL_LINK_CONFIG
     _EXTERNAL_LINK_CONFIG = config.get("external_links", {})
 
-def load_mf_master() -> Dict[str, dict]:
+def _load_mf_master() -> Dict[str, dict]:
     """
     This loads the master list of mutual fund names and their corresponding identifiers for Value Research,
     Morningstar, and Google Finance. On mf_links() calls, we look up the fund name in this master list to
     get the identifiers needed to generate the external links.
 
     This also provides the same identifiers for refresh prices to extract live prices data from AMFI.
+    It a loads the benchmark data as well, which is used to compare fund performance against its benchmark.
     """
     global _MF_MASTER
 
@@ -54,30 +55,15 @@ def load_mf_master() -> Dict[str, dict]:
         if not path.exists():
             raise FileNotFoundError(f"mf_master.json not found at {path}")
                 
-        raw = read_json(path)
-        _MF_MASTER = raw.get("funds", {})
+        _MF_MASTER = read_json(path)
         
     return _MF_MASTER
 
+# Public functions to load the master data for mutual funds and benchmarks.
+def load_mf_master() -> Dict[str, dict]:
+    return _load_mf_master().get("funds", {})
 def load_benchmark_master() -> Dict[str, dict]:
-    """
-    Load the benchmark catalogue from mf_master.json.
-
-    Each benchmark entry contains the provider, source name and
-    display name used by the research subsystem.
-    """
-    global _BENCHMARK_MASTER
-
-    if _BENCHMARK_MASTER is None:
-        path = STATIC_DIR / "mf_master.json"
-
-        if not path.exists():
-            raise FileNotFoundError(f"mf_master.json not found at {path}")
-
-        raw = read_json(path)
-        _BENCHMARK_MASTER = raw.get("benchmarks", {})
-
-    return _BENCHMARK_MASTER
+    return _load_mf_master().get("benchmarks", {})
 
 # -------------------------------------------------
 # STOCK LINKS (INDIA)

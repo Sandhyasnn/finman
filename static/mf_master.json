@@ -22,7 +22,7 @@
       "option": "Growth",
       "direct": true,
       "amfi_code": "119528",
-      "benchmark": "NIFTY50_TRI",
+      "benchmark": "NIFTY100_TRI",
       "isin": "INF209K01YY7",
       "valueresearch_id": 15831,
       "valueresearch_slug": "aditya-birla-sun-life-large-cap-fund-direct-plan",
@@ -37,7 +37,7 @@
       "option": "Growth",
       "direct": false,
       "amfi_code": "103174",
-      "benchmark": "NIFTY50_TRI",
+      "benchmark": "NIFTY100_TRI",
       "isin": "INF209K01BR9",
       "valueresearch_id": 1400,
       "valueresearch_slug": "aditya-birla-sun-life-large-cap-fund-regular-plan",
@@ -67,7 +67,7 @@
       "option": "Growth",
       "direct": true,
       "amfi_code": "118968",
-      "benchmark": "NIFTY50_HYBRID_COMPOSITE_TRI",
+      "benchmark": "NIFTY50_HYBRID_SHORT_50_50",
       "isin": "INF179K01WA6",
       "valueresearch_id": 16055,
       "valueresearch_slug": "hdfc-balanced-advantage-fund-direct-plan",
@@ -97,7 +97,7 @@
       "option": "Growth",
       "direct": true,
       "amfi_code": "119091",
-      "benchmark": "CRISIL_LIQUID_FUND_INDEX",
+      "benchmark": "CRISIL_LIQUID_DEBT_A_I",
       "isin": "INF179KB1HP9",
       "valueresearch_id": 16167,
       "valueresearch_slug": "hdfc-liquid-fund-direct-plan",
@@ -112,7 +112,7 @@
       "option": "Growth",
       "direct": true,
       "amfi_code": "151313",
-      "benchmark": "CRISIL_LONG_DURATION_INDEX",
+      "benchmark": "NIFTY_LONG_DURATION_DEBT_A_III",
       "isin": "INF179KC1ET7",
       "valueresearch_id": 43050,
       "valueresearch_slug": "hdfc-long-duration-debt-fund-direct-plan",
@@ -157,7 +157,7 @@
       "option": "Growth",
       "direct": true,
       "amfi_code": "119016",
-      "benchmark": "CRISIL_SHORT_DURATION_INDEX",
+      "benchmark": "CRISIL_SHORT_DURATION_DEBT_A_II",
       "isin": "INF179K01YM7",
       "valueresearch_id": 16151,
       "valueresearch_slug": "hdfc-short-term-debt-fund-direct-plan",
@@ -172,7 +172,7 @@
       "option": "Growth",
       "direct": true,
       "amfi_code": "119018",
-      "benchmark": "NIFTY50_TRI",
+      "benchmark": "NIFTY100_TRI",
       "isin": "INF179K01YV8",
       "valueresearch_id": 16164,
       "valueresearch_slug": "hdfc-large-cap-fund-direct-plan",
@@ -187,7 +187,7 @@
       "option": "Growth",
       "direct": true,
       "amfi_code": "145034",
-      "benchmark": "CRISIL_ULTRA_SHORT_DURATION_INDEX",
+      "benchmark": "CRISIL_ULTRA_SHORT_DURATION_A_I",
       "isin": "INF179KB15Q6",
       "valueresearch_id": 37806,
       "valueresearch_slug": "hdfc-ultra-short-term-fund-direct-plan",
@@ -217,10 +217,10 @@
       "option": "Growth",
       "direct": true,
       "amfi_code": "152491",
-      "benchmark": "CRISIL_LONG_DURATION_INDEX",
+      "benchmark": "CRISIL_LONG_DURATION_DEBT_A_III",
       "isin": "INF174KA1RF5",
       "valueresearch_id": 44192,
-      "valueresearch_slug": "kotak-long-duration-fund-direct-plan",
+      "valueresearch_slug": "kotak-long-duration-fund-direct-plan ",
       "morningstar_secid": "f00001jrqk",
       "morningstar_slug": "kotak-long-duration-fund-direct-plan-growth-option",
       "google_finance_id": "KOTA_LONG_DURA_FHMIPR"
@@ -254,6 +254,63 @@
       "morningstar_secid": "f00000pdx0",
       "morningstar_slug": "quant-large-and-mid-cap-fund-direct-plan-growth-option",
       "google_finance_id": "QUAN_LARG_AND_11NYPPT"
+    }
+  },
+  "benchmarks": {
+    "NIFTY500_TRI": {
+      "provider": "nifty_tri",
+      "source_name": "NIFTY 500",
+      "display_name": "NIFTY 500 TRI"
+    },
+    "NIFTY100_TRI": {
+      "provider": "nifty_tri",
+      "source_name": "NIFTY 100",
+      "display_name": "NIFTY 100 TRI"
+    },
+    "NIFTY_SMALLCAP250_TRI": {
+      "provider": "nifty_tri",
+      "source_name": "NIFTY SMALLCAP 250",
+      "display_name": "NIFTY Smallcap 250 TRI"
+    },
+    "NIFTY50_HYBRID_SHORT_50_50": {
+      "provider": "nifty",
+      "source_name": "NIFTY 50 Hybrid Composite Debt 50:50 Index",
+      "display_name": "NIFTY 50 Hybrid Composite Debt 50:50 Index"
+    },
+    "CRISIL_LIQUID_DEBT_A_I": {
+      "provider": "crisil",
+      "source_name": "CRISIL Liquid Debt A-I Index",
+      "display_name": "CRISIL Liquid Debt A-I Index"
+    },
+    "NIFTY_LONG_DURATION_DEBT_A_III": {
+      "provider": "nifty",
+      "source_name": "NIFTY Long Duration Debt Index A-III",
+      "display_name": "NIFTY Long Duration Debt Index A-III"
+    },
+    "NIFTY_MIDCAP150_TRI": {
+      "provider": "nifty_tri",
+      "source_name": "NIFTY MIDCAP 150",
+      "display_name": "NIFTY Midcap 150 TRI"
+    },
+    "CRISIL_SHORT_DURATION_DEBT_A_II": {
+      "provider": "crisil",
+      "source_name": "CRISIL Short Duration Debt A-II Index",
+      "display_name": "CRISIL Short Duration Debt A-II Index"
+    },
+    "CRISIL_ULTRA_SHORT_DURATION_A_I": {
+      "provider": "crisil",
+      "source_name": "CRISIL Ultra Short Duration Debt A-I Index",
+      "display_name": "CRISIL Ultra Short Duration Debt A-I Index"
+    },
+    "CRISIL_LONG_DURATION_DEBT_A_III": {
+      "provider": "crisil",
+      "source_name": "CRISIL Long Duration Debt A-III Index",
+      "display_name": "CRISIL Long Duration Debt A-III Index"
+    },
+    "NIFTY_LARGEMIDCAP250_TRI": {
+      "provider": "nifty_tri",
+      "source_name": "NIFTY LARGE MIDCAP 250",
+      "display_name": "NIFTY Large Midcap 250 TRI"
     }
   }
 }

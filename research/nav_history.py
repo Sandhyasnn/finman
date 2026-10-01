@@ -131,8 +131,11 @@ class RefreshAllResult(BaseModel):
     total: int
     success: int
     failed: int
-    benchmark_available: int
-    benchmark_unavailable: int
-    insufficient_history: int
+    
     successful_amfi_codes: list[str]
     failed_amfi_codes: list[str]
+    
+    benchmark_available: int
+    benchmark_unavailable: int
+    
+    insufficient_history: int   # Insufficient history for rolling return calculations

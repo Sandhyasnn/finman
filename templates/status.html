@@ -291,37 +291,33 @@
         <h2>Mutual Fund Research</h2>
 
         {% if research_status %}
-
             <div class="summary">
                 <div class="total">
                     <strong>{{ research_status.success }}</strong>
                     <span>of {{ research_status.total }} funds refreshed</span>
                 </div>
-
                 <div class="total">
                     <strong>{{ research_status.failed }}</strong>
                     <span>failed</span>
                 </div>
-
                 <div class="total">
                     <strong>{{ research_status.benchmark_available }}</strong>
                     <span>benchmarks available</span>
                 </div>
-
                 <div class="total">
                     <strong>{{ research_status.benchmark_unavailable }}</strong>
                     <span>benchmarks unavailable</span>
                 </div>
-
                 <div class="total">
                     <strong>{{ research_status.insufficient_history }}</strong>
-                    <span>funds with insufficient history</span>
+                    <span>insufficient history</span>
                 </div>
             </div>
 
             {% if research_status.failed == 0 %}
                 <div class="status-box success">
                     Research refresh completed successfully.
+                    {{ research_status.success }} of {{ research_status.total }} funds refreshed.
                 </div>
             {% else %}
                 <div class="status-box error">
@@ -330,27 +326,6 @@
                         Failed AMFI codes:
                         {{ research_status.failed_amfi_codes | join(", ") }}
                     </div>
-                </div>
-            {% endif %}
-
-            {% if research_status.benchmark_unavailable %}
-                <div class="status-box warning">
-                    <strong>Benchmark comparisons unavailable:</strong>
-                    {{ research_status.benchmark_unavailable }}
-                    of {{ research_status.success }} refreshed funds.
-                    Benchmark providers may not yet be implemented.
-                </div>
-            {% else %}
-                <div class="status-box success">
-                    Benchmark comparisons available for all refreshed funds.
-                </div>
-            {% endif %}
-
-            {% if research_status.insufficient_history %}
-                <div class="status-box warning">
-                    <strong>Insufficient history:</strong>
-                    {{ research_status.insufficient_history }}
-                    funds have one or more unavailable long-term research metrics.
                 </div>
             {% endif %}
 
