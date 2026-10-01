@@ -1322,7 +1322,7 @@ def build_research_viewmodel(fund, *, generated_at: str | None = None):
 
     if benchmark:
         vm["benchmark"] = {
-            "name": benchmark.benchmark,
+            "name": benchmark.benchmark_name or benchmark.benchmark,
 
             "returns": [
                 {
