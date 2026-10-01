@@ -1475,11 +1475,6 @@ async def research_dashboard(request: Request, amfi_code: str, return_url: str =
     # Convert the internal FundResearch model into the structure expected by research.html.
     generated = research.generated_at
 
-    try:
-        generated = datetime.fromisoformat(generated).strftime("%d %b %Y %H:%M")
-    except Exception:
-        pass
-
     vm = build_research_viewmodel(fund, generated_at=generated)
 
     return templates.TemplateResponse(

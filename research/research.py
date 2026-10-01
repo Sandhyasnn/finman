@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from pathlib import Path
 import threading
+from functools import lru_cache
 
 import logging
 logger = logging.getLogger("finman")
@@ -28,8 +29,7 @@ from research.nav_metrics import (
     calc_drawdown,
     calc_calendar_year_returns,
     calc_volatility,
-    calc_rolling_outperformance,
-    calc_rolling_outperformance_months,
+    calc_rolling_outperformance
 )
 
 from research.nifty_tri import fetch_nifty_tri
@@ -53,9 +53,9 @@ _RESEARCH_INDEX_FLNAME: Path | None = None
 _RESEARCH_BENCHMARK_DIR: Path | None = None
 _BENCHMARK_CACHE_LOCK = threading.Lock()
 
-#----------------------------------------------------
+# ============================================================
 # Configure the Research filesystem
-#----------------------------------------------------
+# ============================================================
 def configure_research(config, base_dir: Path):
     """
     Configure the Research subsystem using the application's validated FinMan configuration.
@@ -70,35 +70,9 @@ def configure_research(config, base_dir: Path):
     _RESEARCH_BENCHMARK_DIR = _RESEARCH_INDEX_FLNAME.parent / "benchmark_history"
     _RESEARCH_BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
 
-#----------------------------------------------------
-#Special function to ensure that in case there is no history beyond a period it is managed properly
-#----------------------------------------------------
-def _safe_rolling_returns(nav_history: NAVHistory, years: int):
-    # Return None instead of failing when there is insufficient NAV history.
-    try:
-        return calc_rolling_returns(nav_history,years)
-    except ValueError:
-        # logger.warning("Insufficient history for %sY rolling returns: %s [%s]", years, nav_history.fund_name, nav_history.amfi_code)
-        return None
-
-#Special function to ensure that in case there is no history beyond a period it is managed properly
-def _safe_trailing_cagr(nav_history: NAVHistory, years: int):
-    # Return None instead of failing when there is insufficient NAV history.
-    try:
-        return calc_trailing_cagr(nav_history.history, years)
-    except ValueError:
-        # logger.warning("Insufficient history for %sY CAGR: %s [%s]", years, nav_history.fund_name, nav_history.amfi_code)
-        return None
-
-def _safe_rolling_returns_months(benchmark_history, months: int):
-    try:
-        return calc_rolling_returns_months(benchmark_history, months)
-    except ValueError:
-        return None
-
-#----------------------------------------------------
-# Internal functions
-#----------------------------------------------------
+# ============================================================
+# Cache Paths
+# ============================================================
 def _get_research_index_flname() -> Path:
     """
     Return the configured Research index cache file name.
@@ -114,6 +88,9 @@ def _benchmark_cache_path(benchmark: str) -> Path:
 
     return _RESEARCH_BENCHMARK_DIR / f"{benchmark}.json"
 
+# ============================================================
+# Benchmark cache
+# ============================================================
 def _load_benchmark_history(benchmark: str) -> BenchmarkHistory | None:
     path = _benchmark_cache_path(benchmark)
 
@@ -149,23 +126,14 @@ def _ensure_benchmark_history(
     start_date: date,
     end_date: date,
 ) -> BenchmarkHistory:
-
-    from research.nifty_tri import fetch_nifty_tri
-
     with _BENCHMARK_CACHE_LOCK:
-
         cached = _load_benchmark_history(benchmark)
 
         if cached is None:
-            df = fetch_nifty_tri(
-                benchmark,
-                start_date,
-                end_date,
-            )
+            df = fetch_nifty_tri(benchmark, start_date, end_date)
 
             points = [
-                BenchmarkPoint(
-                    date=row["Date"].date()
+                BenchmarkPoint(date=row["Date"].date()
                     if hasattr(row["Date"], "date")
                     else row["Date"],
                     tri=float(row["TRI"]),
@@ -173,23 +141,15 @@ def _ensure_benchmark_history(
                 for _, row in df.iterrows()
             ]
 
-            result = BenchmarkHistory(
-                benchmark=benchmark,
-                requested_start=start_date,
-                requested_end=end_date,
-                history=points,
-            )
+            result = BenchmarkHistory(benchmark=benchmark, requested_start=start_date,
+                                      requested_end=end_date, history=points)
 
             _save_benchmark_history(result)
             return result
 
         # Already covered by the cached request range.
-        if (
-            cached.requested_start is not None
-            and cached.requested_end is not None
-            and cached.requested_start <= start_date
-            and cached.requested_end >= end_date
-        ):
+        if (cached.requested_start is not None and cached.requested_end is not None
+            and cached.requested_start <= start_date and cached.requested_end >= end_date):
             return cached
 
         frames = []
@@ -201,11 +161,7 @@ def _ensure_benchmark_history(
                 else end_date
             )
 
-            df = fetch_nifty_tri(
-                benchmark,
-                start_date,
-                left_end,
-            )
+            df = fetch_nifty_tri(benchmark, start_date, left_end)
 
             frames.append(df)
 
@@ -216,11 +172,7 @@ def _ensure_benchmark_history(
                 else start_date
             )
 
-            df = fetch_nifty_tri(
-                benchmark,
-                right_start,
-                end_date,
-            )
+            df = fetch_nifty_tri(benchmark, right_start, end_date)
 
             frames.append(df)
 
@@ -237,10 +189,7 @@ def _ensure_benchmark_history(
                     else row["Date"]
                 )
 
-                points_by_date[row_date] = BenchmarkPoint(
-                    date=row_date,
-                    tri=float(row["TRI"]),
-                )
+                points_by_date[row_date] = BenchmarkPoint(date=row_date, tri=float(row["TRI"]))
 
         new_start = (
             min(cached.requested_start, start_date)
@@ -254,43 +203,67 @@ def _ensure_benchmark_history(
             else end_date
         )
 
-        result = BenchmarkHistory(
-            benchmark=benchmark,
-            requested_start=new_start,
-            requested_end=new_end,
-            history=sorted(
-                points_by_date.values(),
-                key=lambda p: p.date,
-            ),
-        )
+        result = BenchmarkHistory(benchmark=benchmark, requested_start=new_start,requested_end=new_end,
+                                  history=sorted(points_by_date.values(), key=lambda p: p.date) )
 
         _save_benchmark_history(result)
 
         return result
 
-def _get_benchmark_for_amfi(amfi_code: str) -> str | None:
+# ============================================================
+# Benchmark lookup
+# ============================================================
+@lru_cache(maxsize=1)
+def _get_benchmark_map():
+    """
+    Build and cache a lookup table of AMFI code -> benchmark.
+
+    load_mf_master() contains the complete mutual-fund master data. Research refresh processes 
+    multiple funds, so loading and scanning the master data for every fund would repeat the same work.
+    The cache means:
+        - load_mf_master() is called only once per application lifetime (until the cache is cleared).
+        - Each benchmark lookup is an O(1) dictionary lookup.
+        - All research worker threads reuse the same cached map.
+
+    Example:
+        {
+            "118955": "NIFTY_500_TRI",
+            "118968": "NIFTY_500_TRI",
+            ...
+        }
+
+    If the underlying MF master data is changed while the application is running, call:
+        _get_benchmark_map.cache_clear()
+    This invalidates the cached dictionary. The next call to
+    _get_benchmark_map() will reload the master data and rebuild it.
+    """
     mf_master = load_mf_master()
 
-    for entry in mf_master.values():
-        if str(entry.get("amfi_code")) == str(amfi_code):
-            return entry.get("benchmark")
+    return {
+        str(entry["amfi_code"]): entry.get("benchmark")
+        for entry in mf_master.values()
+        if entry.get("amfi_code")
+    }
 
-    return None
+def _get_benchmark_for_amfi(amfi_code: str) -> str | None:
+    """
+    Return the benchmark configured for an AMFI code.
 
-def _calculate_benchmark_comparison(
-    fund_history: NAVHistory,
-    benchmark_key: str,
-) -> BenchmarkComparison | None:
+    This function deliberately hides the implementation of the benchmark lookup from callers. Callers 
+    only need to provide the AMFI code; the cached benchmark map is handled internally.
+    """
+    return _get_benchmark_map().get(str(amfi_code))
 
-    from research.nifty_tri import (
-        is_supported_nifty_tri,
-    )
+# ============================================================
+# Research calculations
+# ============================================================
+def _calculate_benchmark_comparison(fund_history: NAVHistory, benchmark_key: str, 
+                                    fund_metrics: dict,) -> BenchmarkComparison | None:
+
+    from research.nifty_tri import (is_supported_nifty_tri,)
 
     if not is_supported_nifty_tri(benchmark_key):
-        logger.debug(
-            "Benchmark %s is not currently supported by Nifty TRI loader",
-            benchmark_key,
-        )
+        logger.debug("Benchmark %s is not currently supported by Nifty TRI loader", benchmark_key,)
         return None
 
     fund_dates = [
@@ -304,11 +277,7 @@ def _calculate_benchmark_comparison(
     start_date = min(fund_dates)
     end_date = max(fund_dates)
 
-    benchmark_history = _ensure_benchmark_history(
-        benchmark_key,
-        start_date,
-        end_date,
-    )
+    benchmark_history = _ensure_benchmark_history(benchmark_key, start_date, end_date)
 
     bh = benchmark_history.history
 
@@ -321,32 +290,6 @@ def _calculate_benchmark_comparison(
     benchmark_cagr_5y = calc_trailing_cagr(bh, 5)
     benchmark_cagr_7y = calc_trailing_cagr(bh, 7)
     benchmark_cagr_10y = calc_trailing_cagr(bh, 10)
-
-    fund_return_1m = calc_trailing_return_months(
-        fund_history.history, 1
-    )
-    fund_return_3m = calc_trailing_return_months(
-        fund_history.history, 3
-    )
-    fund_return_6m = calc_trailing_return_months(
-        fund_history.history, 6
-    )
-
-    fund_cagr_1y = calc_trailing_cagr(
-        fund_history.history, 1
-    )
-    fund_cagr_3y = calc_trailing_cagr(
-        fund_history.history, 3
-    )
-    fund_cagr_5y = calc_trailing_cagr(
-        fund_history.history, 5
-    )
-    fund_cagr_7y = calc_trailing_cagr(
-        fund_history.history, 7
-    )
-    fund_cagr_10y = calc_trailing_cagr(
-        fund_history.history, 10
-    )
 
     def diff(fund_value, benchmark_value):
         if fund_value is None or benchmark_value is None:
@@ -366,34 +309,34 @@ def _calculate_benchmark_comparison(
         benchmark_cagr_7y=benchmark_cagr_7y,
         benchmark_cagr_10y=benchmark_cagr_10y,
 
-        outperformance_1m=diff(fund_return_1m, benchmark_return_1m),
-        outperformance_3m=diff(fund_return_3m, benchmark_return_3m),
-        outperformance_6m=diff(fund_return_6m, benchmark_return_6m),
-        outperformance_1y=diff(fund_cagr_1y, benchmark_cagr_1y),
-        outperformance_3y=diff(fund_cagr_3y, benchmark_cagr_3y),
-        outperformance_5y=diff(fund_cagr_5y, benchmark_cagr_5y),
-        outperformance_7y=diff(fund_cagr_7y, benchmark_cagr_7y),
-        outperformance_10y=diff(fund_cagr_10y, benchmark_cagr_10y),
+        outperformance_1m=diff(fund_metrics["return_1m"], benchmark_return_1m),
+        outperformance_3m=diff(fund_metrics["return_3m"], benchmark_return_3m),
+        outperformance_6m=diff(fund_metrics["return_6m"], benchmark_return_6m),
+        outperformance_1y=diff(fund_metrics["cagr_1y"], benchmark_cagr_1y),
+        outperformance_3y=diff(fund_metrics["cagr_3y"], benchmark_cagr_3y),
+        outperformance_5y=diff(fund_metrics["cagr_5y"], benchmark_cagr_5y),
+        outperformance_7y=diff(fund_metrics["cagr_7y"], benchmark_cagr_7y),
+        outperformance_10y=diff(fund_metrics["cagr_10y"], benchmark_cagr_10y),
 
-        benchmark_rolling_1m=_safe_rolling_returns_months(benchmark_history, 1),
-        benchmark_rolling_3m=_safe_rolling_returns_months(benchmark_history, 3),
-        benchmark_rolling_6m=_safe_rolling_returns_months(benchmark_history, 6),
+        benchmark_rolling_1m=calc_rolling_returns_months(benchmark_history, 1),
+        benchmark_rolling_3m=calc_rolling_returns_months(benchmark_history, 3),
+        benchmark_rolling_6m=calc_rolling_returns_months(benchmark_history, 6),
 
-        benchmark_rolling_1y=_safe_rolling_returns(benchmark_history, 1),
-        benchmark_rolling_3y=_safe_rolling_returns(benchmark_history, 3),
-        benchmark_rolling_5y=_safe_rolling_returns(benchmark_history, 5),
-        benchmark_rolling_7y=_safe_rolling_returns(benchmark_history, 7),
-        benchmark_rolling_10y=_safe_rolling_returns(benchmark_history, 10),
+        benchmark_rolling_1y=calc_rolling_returns(benchmark_history, 1),
+        benchmark_rolling_3y=calc_rolling_returns(benchmark_history, 3),
+        benchmark_rolling_5y=calc_rolling_returns(benchmark_history, 5),
+        benchmark_rolling_7y=calc_rolling_returns(benchmark_history, 7),
+        benchmark_rolling_10y=calc_rolling_returns(benchmark_history, 10),
 
-        rolling_outperformance_1m=calc_rolling_outperformance_months(fund_history,benchmark_history,1),
-        rolling_outperformance_3m=calc_rolling_outperformance_months(fund_history,benchmark_history,3),
-        rolling_outperformance_6m=calc_rolling_outperformance_months(fund_history,benchmark_history,6),
+        rolling_outperformance_1m=calc_rolling_outperformance(fund_history,benchmark_history,months=1),
+        rolling_outperformance_3m=calc_rolling_outperformance(fund_history,benchmark_history,months=3),
+        rolling_outperformance_6m=calc_rolling_outperformance(fund_history,benchmark_history,months=6),
 
-        rolling_outperformance_1y=calc_rolling_outperformance(fund_history,benchmark_history,1),
-        rolling_outperformance_3y=calc_rolling_outperformance(fund_history,benchmark_history,3),
-        rolling_outperformance_5y=calc_rolling_outperformance(fund_history,benchmark_history,5),
-        rolling_outperformance_7y=calc_rolling_outperformance(fund_history,benchmark_history,7),
-        rolling_outperformance_10y=calc_rolling_outperformance(fund_history,benchmark_history,10),
+        rolling_outperformance_1y=calc_rolling_outperformance(fund_history,benchmark_history,years=1),
+        rolling_outperformance_3y=calc_rolling_outperformance(fund_history,benchmark_history,years=3),
+        rolling_outperformance_5y=calc_rolling_outperformance(fund_history,benchmark_history,years=5),
+        rolling_outperformance_7y=calc_rolling_outperformance(fund_history,benchmark_history,years=7),
+        rolling_outperformance_10y=calc_rolling_outperformance(fund_history,benchmark_history,years=10),
     )
 
 def _calculate_research(amfi_code:str) -> FundResearch:
@@ -401,11 +344,22 @@ def _calculate_research(amfi_code:str) -> FundResearch:
     history = download_nav_history(amfi_code)
     save_nav_history(history)
 
+    fund_metrics = {
+        "return_1m": calc_trailing_return_months(history.history, 1),
+        "return_3m": calc_trailing_return_months(history.history, 3),
+        "return_6m": calc_trailing_return_months(history.history, 6),
+        "cagr_1y": calc_trailing_cagr(history.history, 1),
+        "cagr_3y": calc_trailing_cagr(history.history, 3),
+        "cagr_5y": calc_trailing_cagr(history.history, 5),
+        "cagr_7y": calc_trailing_cagr(history.history, 7),
+        "cagr_10y": calc_trailing_cagr(history.history, 10),
+    }        
+
     benchmark_comparison = None
     benchmark_key = _get_benchmark_for_amfi(amfi_code)
     if benchmark_key:
         try:
-            benchmark_comparison = _calculate_benchmark_comparison(history, benchmark_key)
+            benchmark_comparison = _calculate_benchmark_comparison(history, benchmark_key, fund_metrics)
         except Exception:
             logger.exception("Benchmark comparison failed for AMFI %s benchmark=%s",
                              amfi_code, benchmark_key)
@@ -414,23 +368,23 @@ def _calculate_research(amfi_code:str) -> FundResearch:
         amfi_code=history.amfi_code,
         fund_name=history.fund_name,
 
-        return_1m=calc_trailing_return_months(history.history, 1),
-        return_3m=calc_trailing_return_months(history.history, 3),
-        return_6m=calc_trailing_return_months(history.history, 6),
-        cagr_1y=_safe_trailing_cagr(history,1),
-        cagr_3y=_safe_trailing_cagr(history,3),
-        cagr_5y=_safe_trailing_cagr(history,5),
-        cagr_7y=_safe_trailing_cagr(history, 7),
-        cagr_10y=_safe_trailing_cagr(history, 10),
+        return_1m=fund_metrics["return_1m"],
+        return_3m=fund_metrics["return_3m"],
+        return_6m=fund_metrics["return_6m"],
+        cagr_1y=fund_metrics["cagr_1y"],
+        cagr_3y=fund_metrics["cagr_3y"],
+        cagr_5y=fund_metrics["cagr_5y"],
+        cagr_7y=fund_metrics["cagr_7y"],
+        cagr_10y=fund_metrics["cagr_10y"],
 
         rolling_1m=calc_rolling_returns_months(history, 1),
         rolling_3m=calc_rolling_returns_months(history, 3),
         rolling_6m=calc_rolling_returns_months(history, 6),
-        rolling_1y=_safe_rolling_returns(history,1),
-        rolling_3y=_safe_rolling_returns(history,3),
-        rolling_5y=_safe_rolling_returns(history,5),
-        rolling_7y=_safe_rolling_returns(history, 7),
-        rolling_10y=_safe_rolling_returns(history, 10),
+        rolling_1y=calc_rolling_returns(history, 1),
+        rolling_3y=calc_rolling_returns(history, 3),
+        rolling_5y=calc_rolling_returns(history, 5),
+        rolling_7y=calc_rolling_returns(history, 7),
+        rolling_10y=calc_rolling_returns(history, 10),        
 
         drawdown=calc_drawdown(history),
 
@@ -441,59 +395,11 @@ def _calculate_research(amfi_code:str) -> FundResearch:
         benchmark=benchmark_comparison,
     )
 
-    def pct(value):
-        return f"{value * 100:.2f}%" if value is not None else "N/A"
-
-    # logger.debug("Research: %s [%s] - CAGR 1Y=%s 3Y=%s 5Y=%s", research.fund_name, research.amfi_code,
-    #             pct(research.cagr_1y), pct(research.cagr_3y), pct(research.cagr_5y))
-
-    # logger.debug("Research: %s [%s] - Drawdown max=%s current=%s | Volatility=%s (%d obs)", research.fund_name,
-    #             research.amfi_code, pct(research.drawdown.max_drawdown), pct(research.drawdown.current_drawdown),
-    #             pct(research.volatility.volatility), research.volatility.observations)
-
-    # logger.debug("Research: %s [%s] - Rolling observations: 1Y=%s 3Y=%s 5Y=%s", research.fund_name,
-    #             research.amfi_code, research.rolling_1y.observations if research.rolling_1y else "N/A",
-    #             research.rolling_3y.observations if research.rolling_3y else "N/A",
-    #             research.rolling_5y.observations if research.rolling_5y else "N/A")
-
-    # logger.debug("Research: %s [%s] - %d calendar-year returns", research.fund_name, research.amfi_code,
-    #             len(research.calendar_returns))
-
-    # logger.debug("Research: completed %s [%s]", research.fund_name, research.amfi_code)
-
     return research
 
-    return research
-    
-def _update_research_index(research_index: ResearchIndex, research: FundResearch) -> None:
-    # Update the in-memory research index with the latest fund research.
-    research_index.generated_at = datetime.now()
-    research_index.funds[research.amfi_code] = research
-
-def _save_research_index(research_index: ResearchIndex) -> Path:
-    # Persists the data, saves the in-moemory date to file
-    research_index_file = _get_research_index_flname()
-    write_json(research_index_file, research_index.model_dump(mode="json"))
-    logger.debug("Research index saved: %s (%d funds)", research_index_file, len(research_index.funds))
-    return research_index_file
-
-def _refresh_research(amfi_code:str) -> tuple[FundResearch, Path]:
-    # Complete single-fund research refresh orchestration
-
-    # Load the current index, update it in memory, then save it once.
-    index = load_research_index()
-    # Calculate the research, update the index in memory, and save the updated research index.
-    research = _calculate_research(amfi_code)
-    # Update the in-memory index with the latest research computation
-    _update_research_index(index, research)
-    # Save the index JSON back to file
-    cache_file = _save_research_index(index)    
-
-    return (research, cache_file)
-
-#----------------------------------------------------
+# ============================================================
 # Research function to load/GET/update the JSON index file
-#----------------------------------------------------
+# ============================================================
 def load_research_index() -> ResearchIndex:
     # Loads the research index JSON file and returns it as a ResearchIndex model.
     # The index contains the research results for all funds that have been processed.
@@ -512,6 +418,55 @@ def load_research(amfi_code: str) -> FundResearch | None:
 
     return index.funds.get(amfi_code)
 
+def _update_research_index(research_index: ResearchIndex, research: FundResearch) -> None:
+    # Update the in-memory research index with the latest fund research.
+    research_index.generated_at = datetime.now()
+    research_index.funds[research.amfi_code] = research
+
+def _save_research_index(research_index: ResearchIndex) -> Path:
+    # Persists the data, saves the in-moemory date to file
+    research_index_file = _get_research_index_flname()
+    write_json(research_index_file, research_index.model_dump(mode="json"))
+    logger.debug("Research index saved: %s (%d funds)", research_index_file, len(research_index.funds))
+    return research_index_file
+
+# ============================================================
+# Single-fund research
+# ============================================================
+def _refresh_research(amfi_code:str) -> tuple[FundResearch, Path]:
+    # Complete single-fund research refresh orchestration
+
+    # Load the current index, update it in memory, then save it once.
+    index = load_research_index()
+    # Calculate the research, update the index in memory, and save the updated research index.
+    research = _calculate_research(amfi_code)
+    # Update the in-memory index with the latest research computation
+    _update_research_index(index, research)
+    # Save the index JSON back to file
+    cache_file = _save_research_index(index)    
+
+    return (research, cache_file)
+
+def get_research(amfi_code: str, refresh: bool = False) -> FundResearch:
+    # Returns research for a specific AMFI code.
+    # refresh=True forces a new NAV download and research calculation.
+    # Otherwise, cached research is returned when available;
+    # if no cached research exists, the research is generated.
+    if refresh:
+        research, _ = _refresh_research(amfi_code)
+        return research
+
+    research = load_research(amfi_code)   # Get the reseach for the amfi_code from cache
+    if research:
+        return research
+    
+    research, _ = _refresh_research(amfi_code)
+
+    return research
+
+# ============================================================
+# Research refresh
+# ============================================================
 def _missing_metrics(research: FundResearch) -> list[str]:
     missing = []
 
@@ -697,20 +652,4 @@ def run_research_refresh():
     logger.info("Research refresh: no mutual funds found")
     return None
 
-def get_research(amfi_code: str, refresh: bool = False) -> FundResearch:
-    # Returns research for a specific AMFI code.
-    # refresh=True forces a new NAV download and research calculation.
-    # Otherwise, cached research is returned when available;
-    # if no cached research exists, the research is generated.
-    if refresh:
-        research, _ = _refresh_research(amfi_code)
-        return research
-
-    research = load_research(amfi_code)   # Get the reseach for the amfi_code from cache
-    if research:
-        return research
-    
-    research, _ = _refresh_research(amfi_code)
-
-    return research
 

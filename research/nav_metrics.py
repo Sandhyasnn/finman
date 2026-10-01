@@ -1,8 +1,8 @@
 from datetime import date, timedelta
 from calendar import monthrange
-from math import pow, sqrt
+from bisect import bisect_right
+from math import sqrt
 from statistics import mean, median, stdev
-import statistics
 
 from research.nav_history import (
     NAVHistory, 
@@ -16,26 +16,33 @@ from research.nav_history import (
 #---------------------------------------------------------------
 # Helper functions
 #---------------------------------------------------------------
-def calculate_cagr(start_nav: float, end_nav: float, years: float) -> float:
+def calculate_cagr(start_value: float, end_value: float, years: float) -> float: 
     """
     Returns as a fraction, e.g. 0.1714 for 17.14%
     CAGR = (Ending value/Beginning value)^(1/n) - 1
     """
-    if start_nav <= 0:
+    if start_value <= 0 or end_value <= 0:
         return 0.0
 
-    cagr = (end_nav / start_nav) ** (1 / years) - 1
+    cagr = (end_value / start_value) ** (1 / years) - 1
     return cagr
 
 def get_nav_before_date(history, target_date):
     """
     Finds NAV closest on or before the target date. This is used in trailing CAGR
     """
-    for point in history:
-        if point.date <= target_date:
-            return point
+    # Get a list of just dates from oldest to newest - rememvber history is chronologically sorted
+    dates = [point.date for point in history]
 
-    return None
+    # bisect_right does a binary search. It tries to insert 'target_date' into a sorted list of
+    # 'dates' and returns the index of that insertion. The value before that (hence -1) gives the
+    # value we are seeking
+    index = bisect_right(dates, target_date) - 1
+
+    if index < 0:
+        return None
+
+    return history[index]
 
 def add_months(value: date, months: int) -> date:
     """
@@ -71,23 +78,28 @@ def _series_value(point):
     """Return the numeric value from either NAVPoint or BenchmarkPoint."""
     if hasattr(point, "nav"):
         return point.nav
-
     if hasattr(point, "tri"):
         return point.tri
-
     raise ValueError("Unsupported research data point")
 
 def _history_points(history):
     """Return sorted points from either NAVHistory or BenchmarkHistory."""
-    return sorted(history.history, key=lambda p: p.date)
+    # Can accept either a model or a list, so it can receive NAVHistory or a plain history list
+    points = history.history if hasattr(history, "history") else history
 
-def _point_on_or_before(points, target_date):
-    candidate = None
-    for point in points:
-        if point.date > target_date:
-            break
-        candidate = point
-    return candidate
+    # Before wasting resources sorting the list, it checks if the data is already sorted in 
+    # ascending order.It uses a generator expression with all() to verify that every point's 
+    # date is less than or equal to the date of the point immediately following it. If the list 
+    # is already sorted, it returns the original list immediately, avoiding the computational 
+    # overhead of a full sort. This runs in $O(N)$ time.
+    if all(
+        points[i].date <= points[i + 1].date
+        for i in range(len(points) - 1)
+    ):
+        return points
+
+    # Sorting fallback
+    return sorted(points, key=lambda p: p.date)
 
 #---------------------------------------------------------------
 # Main Calculation / Perofrmance indicators functions
@@ -98,9 +110,9 @@ def calc_trailing_cagr(history, years):
     if not history or len(history) < 2:
         return None
 
-    points = sorted(history, key=lambda p: p.date, reverse=True)
+    points = _history_points(history)
 
-    latest = points[0]
+    latest = points[-1]
     target_date = (latest.date - timedelta(days=int(years * 365.25)) )
 
     historical = get_nav_before_date(points, target_date)
@@ -120,10 +132,10 @@ def calc_trailing_return_months(history, months):
     if not history or len(history) < 2:
         return None
 
-    points = sorted(history, key=lambda p: p.date, reverse=True)
+    points = _history_points(history)
 
-    latest = points[0]
-    target_date = add_months(latest.date, -months)
+    latest = points[-1]   # Grab the last item in the list i.e latest data point
+    target_date = add_months(latest.date, -months)  # move back 'months' from the 'latest' date
 
     historical = get_nav_before_date(points, target_date)
 
@@ -162,10 +174,7 @@ def calc_rolling_returns(nav_history, years: int,) -> RollingReturnStats | None:
 
         # Find the first NAV on or after the target date. Since target_date only moves forward, 
         # end_index never needs to move backwards.
-        while (
-            end_index < len(history)
-            and history[end_index].date < target_date
-        ):
+        while (end_index < len(history) and history[end_index].date < target_date):
             end_index += 1
 
         if end_index >= len(history):
@@ -179,7 +188,7 @@ def calc_rolling_returns(nav_history, years: int,) -> RollingReturnStats | None:
         if start_value <= 0 or end_value <= 0:
             continue
 
-        cagr = (end_value / start_value) ** (1 / years) - 1
+        cagr = calculate_cagr(start_value, end_value, years)
 
         # Accumulate all the rolling returns
         rolling_returns.append(cagr)
@@ -198,7 +207,7 @@ def calc_rolling_returns(nav_history, years: int,) -> RollingReturnStats | None:
         median_return=median(rolling_returns)
     )
 
-def calc_rolling_returns_months(nav_history: NAVHistory, months: int) -> RollingReturnStats:
+def calc_rolling_returns_months(nav_history: NAVHistory, months: int) -> RollingReturnStats | None:
     """
     Calculate actual (non-annualised) returns for every possible
     starting point over the specified number of calendar months.
@@ -213,32 +222,29 @@ def calc_rolling_returns_months(nav_history: NAVHistory, months: int) -> Rolling
     history = _history_points(nav_history)
 
     rolling_returns: list[float] = []
+    end_index = 0
 
     for start_point in history:
         target_date = add_months(start_point.date, months)
 
-        end_point = None
+        # Loops forward on 'history'. So, the end_index for loops after the first are always beyond 
+        # + 'months' of the start_date doing only a forward lookup
+        while (end_index < len(history) and history[end_index].date < target_date):
+            end_index += 1
 
-        for point in history:
-            if point.date >= target_date:
-                end_point = point
-                break
+        if end_index >= len(history):
+            break
 
-        if end_point is None:
-            continue
+        end_point = history[end_index]
 
         start_value = _series_value(start_point)
         end_value = _series_value(end_point)
-
         if start_value <= 0 or end_value <= 0:
             continue
-
-        period_return = (end_value / start_value) - 1
-
-        rolling_returns.append(period_return)
+        rolling_returns.append((end_value / start_value) - 1)
 
     if not rolling_returns:
-        raise ValueError(f"Insufficient history for {months}M rolling returns")
+        return None
 
     return RollingReturnStats(
         years=0,
@@ -249,7 +255,7 @@ def calc_rolling_returns_months(nav_history: NAVHistory, months: int) -> Rolling
         median_return=median(rolling_returns),
     )
 
-def _calc_rolling_outperformance(fund_history, benchmark_history, *,
+def calc_rolling_outperformance(fund_history, benchmark_history, *,
                                  years: int | None = None, months: int | None = None):
     fund_points = _history_points(fund_history)
     benchmark_points = _history_points(benchmark_history)
@@ -321,10 +327,10 @@ def _calc_rolling_outperformance(fund_history, benchmark_history, *,
             continue
 
         if years is not None:
-            fund_return = ((fund_end_value / fund_start_value) ** (1 / years)) - 1
-
-            benchmark_return = ((benchmark_end_value / benchmark_start_value) ** (1 / years)) - 1
+            fund_return = calculate_cagr(fund_start_value, fund_end_value,years)
+            benchmark_return = calculate_cagr(benchmark_start_value, benchmark_end_value, years)
         else:
+            # These will be monthly periods so absolute returns
             fund_return = (fund_end_value / fund_start_value) - 1
             benchmark_return = (benchmark_end_value / benchmark_start_value) - 1
 
@@ -342,33 +348,15 @@ def _calc_rolling_outperformance(fund_history, benchmark_history, *,
         min_outperformance=min(outperformance),
         max_outperformance=max(outperformance),
         avg_outperformance=sum(outperformance) / observations,
-        median_outperformance=statistics.median(outperformance),
+        median_outperformance=median(outperformance),
         periods_outperformed=periods_outperformed,
         pct_periods_outperformed=(
             periods_outperformed / observations
         ),
     )
 
-def calc_rolling_outperformance(fund_history, benchmark_history, years: int,):
-    return _calc_rolling_outperformance(
-        fund_history,
-        benchmark_history,
-        years=years,
-    )
-
-def calc_rolling_outperformance_months(
-    fund_history,
-    benchmark_history,
-    months: int,
-):
-    return _calc_rolling_outperformance(
-        fund_history,
-        benchmark_history,
-        months=months,
-    )
-
 def calc_drawdown(nav_history: NAVHistory) -> DrawdownStats:
-    history = sorted(nav_history.history, key=lambda p: p.date)
+    history = _history_points(nav_history)
 
     if not history:
         raise ValueError("No valid NAV history")
@@ -417,49 +405,42 @@ def calc_drawdown(nav_history: NAVHistory) -> DrawdownStats:
 
 def calc_calendar_year_returns(nav_history: NAVHistory) -> list[CalendarYearReturn]:
     # Calcutate the returns based on calendar year. For that group NAVHistory by calendar year
-    history = sorted(nav_history.history, key=lambda p: p.date)
+    history = _history_points(nav_history)
 
     results: list[CalendarYearReturn] = []
+    current_year = date.today().year
+    yearly_points = {}
 
-    years = sorted({point.date.year for point in history} )
+    for point in history:
+        year = point.date.year
+        if year == current_year:
+            continue   # Ignore data points in current year
 
-    for year in years:
-        # Exclude currernt since the full year will not be over
-        if year == date.today().year:
+        # If you hit the year for the first it enters the if part and sets both the values in 
+        # yearly_points to the same. NExt time you encounter a data point with the same year you only 
+        # update the seoncd part [year][1] successively until the last - rememver history is already sorted
+        # so when you exit the loop for the year you have the first and last point in yearly_points
+        if year not in yearly_points:
+            yearly_points[year] = [point, point]
+        else:
+            yearly_points[year][1] = point
+
+    # Calculate the CAGR for each year and create CalendarYearReturn for each year
+    for year, (first_point, last_point) in yearly_points.items():
+        start_nav = first_point.nav
+        end_nav = last_point.nav
+
+        if start_nav <= 0 or end_nav <= 0:
             continue
 
-        # Get all the NAVHIstory items for the current 'year'. Remember this is already sorted
-        points = [
-            p
-            for p in history
-            if p.date.year == year
-        ]
-
-        # Need at least two NAV observations to calculate the year's return.
-        if len(points) < 2:
-            continue
-
-        # Pick the first and last items in points which is accumulation for 'year'. Remember this is already sorted
-        start_nav = points[0].nav
-        end_nav = points[-1].nav
-        if start_nav <= 0 or end_nav <= 0:   # Skip if there are no points/items at all
-            continue
-        return_pct = (end_nav / start_nav) - 1   # Calucate a simple % since this is only 1 year
-
-        results.append(
-            CalendarYearReturn(
-                year=year,
-                start_nav=start_nav,
-                end_nav=end_nav,
-                return_pct=return_pct,
-            )
-        )
+        results.append(CalendarYearReturn(year=year, start_nav=start_nav, end_nav=end_nav, 
+                               return_pct=(end_nav / start_nav) - 1) )
 
     return results
 
 def calc_volatility(nav_history: NAVHistory,) -> VolatilityStats:
     # Calculates daily volatility by calculating daily returns and computing the standard devation on it X sqrt(252)
-    history = sorted(nav_history.history, key=lambda p: p.date)
+    history = _history_points(nav_history)
 
     returns = []
 
