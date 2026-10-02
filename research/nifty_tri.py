@@ -112,7 +112,8 @@ def fetch_nifty_tri(source_name: str, start_date: date, end_date: date,
 
     # Return an empty DataFrame with expected schema if no records were found
     if not frames:
-        return pd.DataFrame(columns=["Date", "TRI"])
+        # return pd.DataFrame(columns=["Date", "TRI"])
+        raise RuntimeError(f"No TRI data returned for '{source_name}' "f"from {start_date} to {end_date}")
 
     # Combine all individual chunk DataFrames into a single DataFrame
     result = pd.concat(frames, ignore_index=True)

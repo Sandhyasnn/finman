@@ -301,16 +301,16 @@
                     <span>failed</span>
                 </div>
                 <div class="total">
+                    <strong>{{ research_status.insufficient_history }}</strong>
+                    <span>insufficient history</span>
+                </div>
+                <div class="total">
                     <strong>{{ research_status.benchmark_available }}</strong>
                     <span>benchmarks available</span>
                 </div>
                 <div class="total">
                     <strong>{{ research_status.benchmark_unavailable }}</strong>
                     <span>benchmarks unavailable</span>
-                </div>
-                <div class="total">
-                    <strong>{{ research_status.insufficient_history }}</strong>
-                    <span>insufficient history</span>
                 </div>
             </div>
 
@@ -328,7 +328,29 @@
                     </div>
                 </div>
             {% endif %}
-
+            
+            {% if research_status.insufficient_history_details %}
+                <div class="status-box warning">
+                    <strong>Insufficient history</strong>
+                    <ul>
+                        {% for fund, metrics in research_status.insufficient_history_details.items() %}
+                            <li>
+                                {{ fund }} — {{ metrics | join(", ") }}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            {% if research_status.benchmark_unavailable_details %}
+                <div class="status-box warning">
+                    <strong>Benchmarks unavailable</strong>
+                    <ul>
+                        {% for item in research_status.benchmark_unavailable_details %}
+                            <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
         {% else %}
 
             <div class="status-box warning">

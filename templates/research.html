@@ -164,7 +164,7 @@
                 <tr class="row-primary">
                     <td>Benchmark Average</td>
                     {% for r in fund.benchmark.rolling %}
-                        <td class="{{ r.benchmark.avg_return | colour_class }}">
+                        <td class="{{ r.benchmark.avg_return | colour_class if r.benchmark else '' }}">
                             {% if r.benchmark %}
                                 {{ r.benchmark.avg_return | percent(2) }}
                             {% else %}
@@ -176,7 +176,7 @@
                 <tr class="row-primary">
                     <td>Outperformance Average</td>
                     {% for r in fund.benchmark.rolling %}
-                        <td class="{{ r.outperformance.avg_outperformance | colour_class }}">
+                        <td class="{{ r.outperformance.avg_outperformance | colour_class if r.outperformance else ''  }}">
                             {% if r.outperformance %}
                                 {{ r.outperformance.avg_outperformance | percent(2) }}
                             {% else %}
@@ -188,7 +188,7 @@
                 <tr class="row-primary">
                     <td>Outperformance Median</td>
                     {% for r in fund.benchmark.rolling %}
-                        <td class="{{ r.outperformance.median_outperformance | colour_class }}">
+                        <td class="{{ r.outperformance.median_outperformance | colour_class if r.outperformance else ''  }}">
                             {% if r.outperformance %}
                                 {{ r.outperformance.median_outperformance | percent(2) }}
                             {% else %}
@@ -200,7 +200,7 @@
                 <tr class="row-primary">
                     <td>Fund &gt; Benchmark</td>
                     {% for r in fund.benchmark.rolling %}
-                        <td class="{{ r.outperformance.pct_periods_outperformed | colour_class }}">
+                        <td class="{{ r.outperformance.pct_periods_outperformed | colour_class if r.outperformance else ''  }}">
                             {% if r.outperformance %}
                                 {{ (r.outperformance.pct_periods_outperformed * 100) | round(1) }}%
                             {% else %}

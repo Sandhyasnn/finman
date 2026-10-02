@@ -10,6 +10,9 @@ REM Activate virtual environment (your custom script)
 call finman_actv.bat
 
 REM Start FastAPI app
+REM dont add JSON files below since the rtesearch system generate it everytime causing a perpetual retart 
+REM of the server
+
 python finman.py ^
         --reload ^
         --reload-dir . ^

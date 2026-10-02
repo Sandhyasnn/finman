@@ -67,7 +67,7 @@
       "option": "Growth",
       "direct": true,
       "amfi_code": "118968",
-      "benchmark": "NIFTY50_HYBRID_SHORT_50_50",
+      "benchmark": "NIFTY50_HYBRID_COMPOSITE_DEBT_50_50",
       "isin": "INF179K01WA6",
       "valueresearch_id": 16055,
       "valueresearch_slug": "hdfc-balanced-advantage-fund-direct-plan",
@@ -272,10 +272,10 @@
       "source_name": "NIFTY SMALLCAP 250",
       "display_name": "NIFTY Smallcap 250 TRI"
     },
-    "NIFTY50_HYBRID_SHORT_50_50": {
-      "provider": "nifty",
-      "source_name": "NIFTY 50 Hybrid Composite Debt 50:50 Index",
-      "display_name": "NIFTY 50 Hybrid Composite Debt 50:50 Index"
+    "NIFTY50_HYBRID_COMPOSITE_DEBT_50_50": {
+        "provider": "nifty",
+        "source_name": "NIFTY 50 HYBRID COMPOSITE DEBT 50:50",
+        "display_name": "NIFTY 50 Hybrid Composite Debt 50:50 TRI"
     },
     "CRISIL_LIQUID_DEBT_A_I": {
       "provider": "crisil",
@@ -284,7 +284,7 @@
     },
     "NIFTY_LONG_DURATION_DEBT_A_III": {
       "provider": "nifty",
-      "source_name": "NIFTY Long Duration Debt Index A-III",
+      "source_name": "NIFTY LONG DURATION DEBT INDEX A-III",      
       "display_name": "NIFTY Long Duration Debt Index A-III"
     },
     "NIFTY_MIDCAP150_TRI": {
@@ -309,7 +309,7 @@
     },
     "NIFTY_LARGEMIDCAP250_TRI": {
       "provider": "nifty_tri",
-      "source_name": "NIFTY LARGE MIDCAP 250",
+      "source_name": "NIFTY LARGEMIDCAP 250",
       "display_name": "NIFTY Large Midcap 250 TRI"
     }
   }

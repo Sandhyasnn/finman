@@ -242,7 +242,7 @@ def _get_benchmark_map():
         if entry.get("amfi_code")
     }
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=32)
 def _get_benchmark_definition(benchmark_key: str) -> dict | None:
     """
     Return the configured definition for a benchmark.
@@ -536,6 +536,7 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
     # Load the research index JSON once.
     index = load_research_index()
     insufficient_history = {}
+    benchmark_unavailable_details = []
 
     # ------------------------------------------------------------------
     # Parallel research refresh
@@ -625,6 +626,13 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
                     insufficient_history[research.fund_name] = missing
                     insufficient_history_count += 1
 
+                if research.benchmark is None:
+                    benchmark_key = _get_benchmark_for_amfi(amfi_code)
+                    if benchmark_key:
+                        benchmark_unavailable_details.append(f"{research.fund_name} — {benchmark_key}")
+                    else:
+                        benchmark_unavailable_details.append(f"{research.fund_name} — no benchmark configured")                    
+
                 # Only the main thread updates the shared ResearchIndex.
                 _update_research_index(index, research)
 
@@ -661,7 +669,9 @@ def refresh_all_research(amfi_codes: list[str]) -> RefreshAllResult:
         failed_amfi_codes=failed_amfi_codes,
         benchmark_available=benchmark_available,
         benchmark_unavailable=benchmark_unavailable,
+        benchmark_unavailable_details=benchmark_unavailable_details,
         insufficient_history=insufficient_history_count,
+        insufficient_history_details=insufficient_history,
     )
 
 def run_research_refresh():

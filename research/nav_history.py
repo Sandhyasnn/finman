@@ -130,12 +130,13 @@ class ResearchIndex(BaseModel):
 class RefreshAllResult(BaseModel):
     total: int
     success: int
-    failed: int
-    
+    failed: int  
     successful_amfi_codes: list[str]
     failed_amfi_codes: list[str]
     
     benchmark_available: int
     benchmark_unavailable: int
+    benchmark_unavailable_details: list[str]
     
     insufficient_history: int   # Insufficient history for rolling return calculations
+    insufficient_history_details: dict[str, list[str]]
