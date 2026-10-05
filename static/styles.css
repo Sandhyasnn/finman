@@ -100,7 +100,8 @@ tbody tr:last-child td { border-bottom: none; }
 
 /* Locks the very first row of header cells (<th>) to the top of the container/viewport when scrolling down. */
 .portfolio table thead tr:nth-child(1) th,
-.tax table thead tr:nth-child(1) th
+.tax table thead tr:nth-child(1) th,
+.dashboard table thead tr:nth-child(1) th
 {
     position: sticky;
     top: 0;
@@ -247,11 +248,6 @@ footer {
         padding: 3px 4px 3px 0;
     }
 
-    .tax th,
-    .tax-summary th {
-        font-size: 12px;
-    }
-
     /* Keep gain type together */
     .tax th:nth-child(2),
     .tax td:nth-child(2) {
@@ -281,6 +277,18 @@ footer {
         padding: 0 6px;
     }
 
+    /* Allows the table to scroll vertically when the content is taller than the viewport. 
+       max-height: calc(100dvh - 90px) keeps the table from growing taller than the screen minus the header. 
+       The 90px is a rough estimate of the header height; adjust as needed. */
+    .portfolio,
+    .tax,
+    .table-wrap,
+    .dashboard {
+        overflow: auto;                 /* both directions */
+        max-height: calc(100dvh - 90px); /* tune 90px to your header height */
+        -webkit-overflow-scrolling: touch;
+    }
+
     /* Critical. max-content tells the browser “make the table as wide as its content needs”. 
        table-layout: auto lets columns size themselves based on content instead of the rigid percentage widths. 
        !important is required to override the fixed-layout rules that live in baseview.css. */
@@ -307,7 +315,6 @@ footer {
        max-width: 70px is the trigger that forces wrapping on long headers like “CURRENT VALUE”. 
        vertical-align: bottom keeps the text aligned nicely at the bottom of the header cell. */
     .portfolio th {
-        font-size: 11px;          /* smaller than body text */
         line-height: 1.2;
         white-space: normal;      /* allow header text to wrap */
         max-width: 70px;          /* force wrapping on long headers */
@@ -368,8 +375,6 @@ footer {
    ========================================================= */
     .dashboard {
         max-width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
     }
 
     .dashboard th:not(:first-child),
