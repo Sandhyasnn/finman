@@ -7,26 +7,21 @@
    PORTFOLIO TABLE
    Column widths are defined centrally in styles.css
    ========================================================= */
-.portfolio table {
-    width: 100%;
-    table-layout: fixed;
+/* PORTFOLIO TABLE – desktop only; phones use auto layout */
+@media (min-width: 481px) {
+    .portfolio table {
+        table-layout: fixed;
+    }
+
+    .portfolio th:nth-child(1) { width: var(--col-security); }
+    .portfolio th:nth-child(2) { width: var(--col-avg-price); }
+    .portfolio th:nth-child(3) { width: var(--col-quantity); }
+    .portfolio th:nth-child(4) { width: var(--col-cost); }
+    .portfolio th:nth-child(5) { width: var(--col-current-price); }
+    .portfolio th:nth-child(6) { width: var(--col-value); }
+    .portfolio th:nth-child(7) { width: var(--col-return); }
+    .portfolio th:nth-child(8) { width: var(--col-gain-pct); }
 }
-.portfolio th:nth-child(1),
-.portfolio td:nth-child(1) { width: var(--col-security); }
-.portfolio th:nth-child(2),
-.portfolio td:nth-child(2) { width: var(--col-avg-price); }
-.portfolio th:nth-child(3),
-.portfolio td:nth-child(3) { width: var(--col-quantity); }
-.portfolio th:nth-child(4),
-.portfolio td:nth-child(4) { width: var(--col-cost); }
-.portfolio th:nth-child(5),
-.portfolio td:nth-child(5) { width: var(--col-current-price); }
-.portfolio th:nth-child(6),
-.portfolio td:nth-child(6) { width: var(--col-value); }
-.portfolio th:nth-child(7),
-.portfolio td:nth-child(7) { width: var(--col-return); }
-.portfolio th:nth-child(8),
-.portfolio td:nth-child(8) { width: var(--col-gain-pct); }
 
 /* =========================================================
 VIEW CONTROLS (top bar: Portfolio | Broker | Tax links + forms)
@@ -51,5 +46,21 @@ so the user can see which screen they are on. */
     font-weight: bold;
     text-decoration: underline;
 }
+
+/* View controls – compact layout on phones */
+@media (max-width: 480px) {
+    .view-controls {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 0.35rem 0.5rem;
+        font-size: 13px;
+    }
+
+    .view-controls select {
+        max-width: 100px;
+        font-size: 13px;
+    }
+}
+
 
 

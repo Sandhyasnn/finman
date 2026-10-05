@@ -93,7 +93,9 @@ tbody tr:last-child td { border-bottom: none; }
 .holding th,
 .holding td,
 .holding-transactions th:nth-child(n+3),
-.holding-transactions td:nth-child(n+3)
+.holding-transactions td:nth-child(n+3),
+.dashboard th:not(:first-child),
+.dashboard td:not(:first-child)
 {
     text-align: right;
 }
@@ -219,7 +221,7 @@ footer {
 .info-icon {
     font-size: 11px;
     cursor: help;
-    color: #888;
+    color: var(--muted);
     margin-left: 2px;
 }
 
@@ -231,98 +233,85 @@ footer {
 }
 
 /* =========================================================
-   TAX — MOBILE TIGHTENING
-   Step 1: keep the existing table design, but make it
-   easier to read on narrow screens.
+   MOBILE LAYOUT
+   Compact tables and controls for narrow screens
    ========================================================= */
 @media (max-width: 480px) {
+
+    /* Reduces left/right padding on very small screens so the table can use more of the width. */
+    body {
+        padding: 12px 6px 32px;
+    }
+
+    /* Allows tables to scroll when their content is wider or taller than the screen. */
+    .portfolio,
+    .tax,
+    .table-wrap,
+    .dashboard {
+        overflow: auto;
+        max-height: calc(100dvh - 90px);
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Lets the portfolio table edge almost reach the screen edge. */
+    .portfolio {
+        margin: 0 -6px;
+        padding: 0 6px;
+    }
+
+    /* Smaller tables on narrow screens. */
     .tax table,
-    .tax-summary table {
+    .tax-summary table,
+    .dashboard table {
         font-size: 12px;
     }
 
-    .tax th,
-    .tax td,
-    .tax-summary th,
-    .tax-summary td {
-        padding: 3px 4px 3px 0;
+    /* Keeps dashboard headers compact on narrow screens. */
+    .dashboard th {
+        font-size: 11px;
     }
 
-    /* Keep gain type together */
+    /* Keep numeric values on one line. */
+    .tax th:nth-child(n+3),
+    .tax td:nth-child(n+3),
+    .tax-summary th:nth-child(n+2),
+    .tax-summary td:nth-child(n+2),
+    .dashboard th,
+    .dashboard td {
+        white-space: nowrap;
+    }
+
+    /* Keeps the gain type together so it does not wrap on narrow screens. */
     .tax th:nth-child(2),
     .tax td:nth-child(2) {
         white-space: nowrap;
     }
 
-    /* Never wrap monetary values */
-    .tax th:nth-child(n+3),
-    .tax td:nth-child(n+3),
-    .tax-summary th:nth-child(n+2),
-    .tax-summary td:nth-child(n+2) {
-        white-space: nowrap;
-    }    
-}
-
-@media (max-width: 480px) {
-    /* Reduces left/right padding on very small screens so the table can use more of the width. */
-    body { padding: 12px 6px 32px; }
-
-    /* Makes the whole table container scrollable left/right when the content is wider than the phone. 
-      -webkit-overflow-scrolling: touch gives smooth momentum scrolling on iOS. The negative margin + matching 
-      padding lets the table edge almost reach the screen edge. */
-    .portfolio {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        margin: 0 -6px;
-        padding: 0 6px;
-    }
-
-    /* Allows the table to scroll vertically when the content is taller than the viewport. 
-       max-height: calc(100dvh - 90px) keeps the table from growing taller than the screen minus the header. 
-       The 90px is a rough estimate of the header height; adjust as needed. */
-    .portfolio,
-    .tax,
-    .table-wrap,
-    .dashboard {
-        overflow: auto;                 /* both directions */
-        max-height: calc(100dvh - 90px); /* tune 90px to your header height */
-        -webkit-overflow-scrolling: touch;
-    }
-
-    /* Critical. max-content tells the browser “make the table as wide as its content needs”. 
-       table-layout: auto lets columns size themselves based on content instead of the rigid percentage widths. 
-       !important is required to override the fixed-layout rules that live in baseview.css. */
+    /* Portfolio table sizes itself according to its content on phones. */
     .portfolio table {
-        width: max-content !important;
+        width: max-content;
         min-width: 100%;
-        table-layout: auto !important;
+        table-layout: auto;
         font-size: 13px;
     }
 
-    /* Kill the percentage widths that are defined in baseview.css */
-    /* Removes the percentage column widths that were forcing everything to be tiny. 
-       white-space: nowrap keeps the numbers on a single line so they never wrap in the middle of a currency value. */
+    /* Numbers stay on one line; security name is handled separately below. */
     .portfolio th,
     .portfolio td {
-        width: auto !important;
-        min-width: 0;
         padding: 5px 10px 5px 0;
         white-space: nowrap;
     }
 
-    /* Header cells – smaller text + allow wrapping */
-    /* Makes header text smaller and allows it to wrap onto two lines when the column is narrow. 
-       max-width: 70px is the trigger that forces wrapping on long headers like “CURRENT VALUE”. 
-       vertical-align: bottom keeps the text aligned nicely at the bottom of the header cell. */
+    /* Header cells can wrap onto two lines when necessary. */
     .portfolio th {
         line-height: 1.2;
-        white-space: normal;      /* allow header text to wrap */
-        max-width: 70px;          /* force wrapping on long headers */
+        white-space: normal;
+        max-width: 70px;
         vertical-align: middle;
         padding-bottom: 6px;
     }
 
-    /* Only the security-name column is allowed to wrap. Everything else stays on one line. */
+    /* Only the security-name column is allowed to wrap. */
     .portfolio td:first-child {
         white-space: normal;
         max-width: 150px;
@@ -330,75 +319,29 @@ footer {
         overflow-wrap: anywhere;
     }
 
-    /* Section headers (ETF - MALT, etc.) are allowed to wrap so they don’t force the table wider than necessary. */
+    /* Section headers are allowed to wrap. */
     .portfolio tbody tr td[colspan] {
         white-space: normal;
-        font-size: 13px;
     }
 
-    /* Just makes the Owner dropdown and the View links a bit more compact so they don’t take too much vertical space. */
-    .view-controls {
-        width: 100%;
-        gap: 0.35rem 0.5rem;
-        flex-wrap: wrap;
-        font-size: 13px;
-    }
-    .view-controls select {
-        max-width: 100px;
-        font-size: 13px;
-    }
-
-    /* Security name + links layout */
-    /* Mobile only – stacks the name and the links vertically. */
+    /* Security name and links stack vertically on phones. */
     .security-cell {
         flex-direction: column;
-        align-items: flex-start;   /* left-align both lines */
+        align-items: flex-start;
         gap: 2px;
-        padding-left: 0;           /* kill any indent */
     }
 
     .security-name,
-        .security-links {
-            margin: 0;
-            padding: 0;
-            padding-left: 0;           /* ensure no tabbed space */
-            white-space: normal;
-        }
-
-        .security-links {
-            margin-top: 1px;
-        }
-}
-
-/* =========================================================
-   DASHBOARD SPECIFIC STYLING
-   ========================================================= */
-    .dashboard {
-        max-width: 100%;
+    .security-links {
+        margin: 0;
+        padding: 0;
+        white-space: normal;
     }
 
-    .dashboard th:not(:first-child),
-    .dashboard td:not(:first-child) {
-        text-align: right;
-    }
-
-   @media (max-width: 480px) {
-    
-    .dashboard table {
-        font-size: 12px;
-    }
-
-    .dashboard th,
-    .dashboard td {
-        padding: 3px 4px 3px 0;
-        white-space: nowrap;
-    }
-
-    .dashboard th {
-        font-size: 11px;
+    .security-links {
+        margin-top: 1px;
     }
 }
-
 
 /* =========================================================
 "⋮ MORE" DROPDOWN MENU
@@ -414,7 +357,7 @@ wrapper so it always appears under the "More" button. */
     position: absolute;
     top: 110%;
     right: 0;
-    background: var(--surface, #ffffff);
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
