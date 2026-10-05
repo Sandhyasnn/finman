@@ -190,7 +190,6 @@
     The hidden "content" field below is populated by JavaScript with
     the complete edited configuration before the form is submitted.
 #}
-<form id="settings-editor-form"
 <form id="settings-editor-form" method="post" action="/settings/edit/{{ file }}/{{ section }}">
     <input type="hidden" name="content" id="settings-content">
     <input type="hidden" name="return_url" value="{{ return_url }}">
@@ -200,9 +199,9 @@
     </section>
 
     <div class="editor-actions">
-        <a class="settings-cancel-button" href="/settings?file={{ file }}&section={{ section | urlencode }}">
+        <a class="settings-cancel-button" href="/settings?file={{ file }}&section={{ section | urlencode }}">Cancel</a>
         <button type="submit">Save {{ section_title }}</button>
-    </div>
+    </div>    
 </form>
 
 <script>

@@ -30,12 +30,12 @@
                         <td class="section-cost"><strong>{{ section.summary.cost | currency }}</strong></td>
                         <td></td>
                         <td class="section-value"><strong>{{ section.summary.net_value | currency }}</strong></td>
-                        <td class="section-gain"><strong class="{{ 'positive' if section.summary.gain_value >= 0 else 'negative' }}">
+                        <td class="section-gain"><strong class="{{ section.summary.gain_value | colour_class }}">
                                 {{ section.summary.gain_value | currency }}
                             </strong>
                         </td>
                         <td class="section-return">
-                            <strong class="{{ 'positive' if section.summary.gain_pct is not none and section.summary.gain_pct >= 0 else 'negative' }}">
+                            <strong class="{{ section.summary.gain_pct | colour_class }}">
                                 {{ section.summary.gain_pct | percent }}
                             </strong>
                         </td>
@@ -87,8 +87,8 @@
                             <td>{{ holding.cost | currency }}</td>
                             <td>{{ holding.current_price | currency(decimal=2) }}</td>
                             <td>{{ holding.current_value | currency }}</td>
-                            <td class="{{ 'positive' if holding.gain_value is not none and holding.gain_value >= 0 else 'negative' }}">{{ holding.gain_value | currency }}</td>
-                            <td class="{{ 'positive' if holding.gain_pct is not none and holding.gain_pct >= 0 else 'negative' }}">{{ holding.gain_pct | percent }}</td>
+                            <td class="{{ holding.gain_value | colour_class }}">{{ holding.gain_value | currency }}</td>
+                            <td class="{{ holding.gain_pct | colour_class }}">{{ holding.gain_pct | percent }}</td>
                         </tr>
                         {% if holding.asset_type == "US STOCK" %}
                             <!-- US stocks show a second row using native USD transaction and current market values. -->                        
@@ -103,10 +103,10 @@
                                 <td>{{ holding.usd_cost | currency(currency="USD") }}</td>
                                 <td>{{ holding.usd_current_price | currency(currency="USD", decimal=2) }}</td>
                                 <td>{{ holding.usd_current_value | currency(currency="USD") }}</td>
-                                <td class="{{ 'positive' if holding.usd_gain_value is not none and holding.usd_gain_value >= 0 else 'negative' }}">
+                                <td class="{{ holding.usd_gain_value | colour_class }}">
                                     {{ holding.usd_gain_value | currency(currency="USD") }}
                                 </td>
-                                <td class="{{ 'positive' if holding.usd_gain_pct is not none and holding.usd_gain_pct >= 0 else 'negative' }}">
+                                <td class="{{ holding.usd_gain_pct | colour_class }}">
                                     {{ holding.usd_gain_pct | percent }}
                                 </td>
                             </tr>

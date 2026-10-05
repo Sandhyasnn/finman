@@ -180,10 +180,8 @@ def build_holdings(transactions: list[Transaction], scope: HoldingScope = "curre
             quantity = sum(t.transaction_quantity for t in group)
 
         # 2. Get cost
-        # Cost definition depends on the holding scope:
-        # current = open transaction values
-        # total   = buy transaction values
-        # closed  = closed buy transaction values
+        # Cost is the total of buy-type transaction values in the group.
+        # The group has already been filtered by scope.        
         cost_transactions = [
             t for t in group
             if t.transaction_action in BUY_ACTIONS
@@ -282,19 +280,6 @@ def build_holdings(transactions: list[Transaction], scope: HoldingScope = "curre
                 if usd_current_values
                 else None
             )
-
-            if scope == "current":
-                usd_gain_value = (
-                    usd_current_value - usd_cost
-                    if usd_current_value is not None
-                    else None
-                )
-
-                if usd_current_value is not None:
-                    usd_gain_pct = _calculate_transaction_xirr_usd(
-                        group,
-                        usd_current_value,
-                    )
 
         # 8. Get the net gain and net gain percent in INR   
         # USD gain is calculated separately above for US stocks.
@@ -490,7 +475,6 @@ def _calculate_transaction_xirr(transactions: list[Transaction], terminal_value:
 
     return calculate_xirr(cash_flows, dates)
 
-
 def _calculate_transaction_xirr_usd(transactions: list[Transaction], terminal_value: float | None = None,) -> float | None:
     """
     Calculate XIRR using USD transaction values and dates.
@@ -521,14 +505,8 @@ def calculate_portfolio_gain(transactions: list[Transaction], owner: str | None 
     Calculate Current Gain % for a filtered portfolio.
     Uses open transaction cash flows and current value as the terminal value.
     """    
-    filtered = [
-        transaction
-        for transaction in transactions
-        if not transaction.position_closed
-        and (owner is None or transaction.owner == owner)
-        and (asset_type is None or transaction.asset_type == asset_type)
-        and (broker is None or transaction.broker == broker)
-    ]
+    filtered = _filter_transactions(transactions, owner=owner, asset_type=asset_type, 
+                                    broker=broker, scope="current")
 
     current_values = [
         transaction.current_value
@@ -536,7 +514,7 @@ def calculate_portfolio_gain(transactions: list[Transaction], owner: str | None 
         if transaction.current_value is not None
     ]
 
-    if not filtered or not current_values:
+    if not current_values:
         return None
 
     current_value = sum(current_values)
@@ -564,30 +542,16 @@ def build_holding_detail(
     if not filtered:
         return None
 
-    current = build_holdings(transactions, scope="current",owner=owner, 
-                             asset_type=asset_type,broker=broker)
+    # Build the current, total and closed holdings for this based on filtered transactions 
+    # which is already filtered for the specified security, owner, asset_type and broker. 
+    current = build_holdings(filtered, scope="current")
+    current = current[0] if current else None
 
-    total = build_holdings(transactions, scope="total", owner=owner, 
-                           asset_type=asset_type,broker=broker)
+    total = build_holdings(filtered, scope="total")
+    total = total[0] if total else None
 
-    closed = build_holdings(transactions, scope="closed", owner=owner,
-                            asset_type=asset_type, broker=broker)
-
-    current = next(
-        (holding for holding in current if holding.security == security),
-        None,
-    )
-
-    total = next(
-        (holding for holding in total if holding.security == security),
-        None,
-    )
-
-    closed = next(
-        (holding for holding in closed if holding.security == security),
-        None,
-    )
-
+    closed = build_holdings(filtered, scope="closed")
+    closed = closed[0] if closed else None
     first = filtered[0]
 
     return HoldingDetail(

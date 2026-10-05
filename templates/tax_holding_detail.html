@@ -78,7 +78,7 @@
                 <td>{{ record.gain_type }}</td>
                 <td>{{ record.buy_value | currency }}</td>
                 <td>{{ record.sell_value | currency }}</td>
-                <td class="{{ 'positive' if record.capital_gain >= 0 else 'negative' }}">
+                <td class="{{ record.capital_gain | colour_class }}">
                     {{ record.capital_gain | currency }}
                 </td>
             </tr>

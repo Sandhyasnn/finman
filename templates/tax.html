@@ -49,7 +49,7 @@
                 <td>{{ transaction.gain_type }}</td>
                 <td>{{ transaction.buy_value | currency }}</td>
                 <td>{{ transaction.sell_value | currency }}</td>
-                <td class="{{ 'positive' if transaction.capital_gain >= 0 else 'negative' }}">
+                <td class="{{ transaction.capital_gain | colour_class }}">
                     {{ transaction.capital_gain | currency }}
                 </td>
             </tr>
@@ -62,7 +62,7 @@
                 <td><strong>{{ summary.gain_type }}</strong></td>
                 <td><strong>{{ summary.buy_value | currency }}</strong></td>
                 <td><strong>{{ summary.sell_value | currency }}</strong></td>
-                <td class="{{ 'positive' if summary.capital_gain >= 0 else 'negative' }}">
+                <td class="{{ summary.capital_gain | colour_class }}">
                     <strong>{{ summary.capital_gain | currency }}</strong>
                 </td>
             </tr>
@@ -97,7 +97,7 @@
                 <td>{{ summary.gain_type }}</td>
                 <td>{{ summary.buy_value | currency }}</td>
                 <td>{{ summary.sell_value | currency }}</td>
-                <td class="{{ 'positive' if summary.capital_gain >= 0 else 'negative' }}">
+                <td class="{{ summary.capital_gain | colour_class }}">
                     {{ summary.capital_gain | currency }}
                 </td>
             </tr>

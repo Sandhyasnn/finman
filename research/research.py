@@ -484,28 +484,23 @@ def get_research(amfi_code: str, refresh: bool = False) -> FundResearch:
 # ============================================================
 def _missing_metrics(research: FundResearch) -> list[str]:
     missing = []
+    
+    metrics = [
+        ("cagr_1y", "1Y CAGR"),
+        ("cagr_3y", "3Y CAGR"),
+        ("cagr_5y", "5Y CAGR"),
+        ("cagr_7y", "7Y CAGR"),
+        ("cagr_10y", "10Y CAGR"),
+        ("rolling_1y", "1Y rolling"),
+        ("rolling_3y", "3Y rolling"),
+        ("rolling_5y", "5Y rolling"),
+        ("rolling_7y", "7Y rolling"),
+        ("rolling_10y", "10Y rolling"),
+    ]
 
-    if research.cagr_1y is None:
-        missing.append("1Y CAGR")
-    if research.cagr_3y is None:
-        missing.append("3Y CAGR")
-    if research.cagr_5y is None:
-        missing.append("5Y CAGR")
-    if research.cagr_7y is None:
-        missing.append("7Y CAGR")
-    if research.cagr_10y is None:
-        missing.append("10Y CAGR")
-
-    if research.rolling_1y is None:
-        missing.append("1Y rolling")
-    if research.rolling_3y is None:
-        missing.append("3Y rolling")
-    if research.rolling_5y is None:
-        missing.append("5Y rolling")
-    if research.rolling_7y is None:
-        missing.append("7Y rolling")
-    if research.rolling_10y is None:
-        missing.append("10Y rolling")
+    for field, label in metrics:
+        if getattr(research, field) is None:
+            missing.append(label)
 
     return missing
 

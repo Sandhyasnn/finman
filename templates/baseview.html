@@ -34,14 +34,14 @@
                 </div>
 
                 <div class="total">
-                    <strong class="{{ 'positive' if view.summary.gain_value >= 0 else 'negative' }}">
+                    <strong class="{{ view.summary.gain_value | colour_class }}">
                         {{ view.summary.gain_value | currency }}
                     </strong>
                     <span>Gain</span>
                 </div>
 
                 <div class="total">
-                    <strong class="{{ 'positive' if view.summary.gain_pct is not none and view.summary.gain_pct >= 0 else 'negative' }}">
+                    <strong class="{{ view.summary.gain_pct | colour_class }}">
                         {{ view.summary.gain_pct | percent }}
                     </strong>
                     <span>Gain %</span>

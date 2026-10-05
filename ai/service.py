@@ -19,6 +19,30 @@ _PROVIDER_CLASSES = {
 }
 
 # ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+def _get_sorted_provider_names(ai_config: dict) -> list[str]:
+    # --------------------------------------------------------
+    # Select enabled providers.
+    # --------------------------------------------------------
+    providers = ai_config.providers
+
+    # --------------------------------------------------------
+    # Sort by priority.
+    #
+    # This is ONLY ordering.
+    # It is NOT fallback logic.
+    # --------------------------------------------------------
+    return sorted(
+        (
+            name
+            for name, config in providers.items()
+            if config.enabled
+        ),
+        key=lambda name: providers[name].priority
+    )
+
+# ============================================================
 # PROVIDER CREATION
 # ============================================================
 def _create_provider(name, ai_config):
@@ -135,21 +159,10 @@ async def explain_holding(ai_config, holding: dict) -> dict:
     ai_holding = _build_ai_holding(holding)
 
     # --------------------------------------------------------
-    # Select enabled providers.
+    # Select enabled providers and sort by priority
     # --------------------------------------------------------
-    provider_names = [
-        name
-        for name, provider_config in ai_config.providers.items()
-        if provider_config.enabled
-    ]
+    provider_names = _get_sorted_provider_names(ai_config)
 
-    # --------------------------------------------------------
-    # Sort by priority.
-    #
-    # This is ONLY ordering.
-    # It is NOT fallback logic.
-    # --------------------------------------------------------
-    provider_names.sort(key=lambda name: ai_config.providers[name].priority )
     if not provider_names:
         return {}
 
@@ -169,7 +182,6 @@ async def explain_holding(ai_config, holding: dict) -> dict:
     return {item["provider"]: item
         for item in results }
 
-
 # ============================================================
 # AI HEALTH CHECK
 # ============================================================
@@ -188,11 +200,10 @@ async def check_ai_health(ai_config) -> dict:
             "providers": {},
         }
 
-    provider_names = [name
-                      for name, provider_config in ai_config.providers.items()
-                      if provider_config.enabled ]
-
-    provider_names.sort(key=lambda name: ai_config.providers[name].priority )
+    # --------------------------------------------------------
+    # Select enabled providers and sort by priority
+    # --------------------------------------------------------
+    provider_names = _get_sorted_provider_names(ai_config)
 
     async def check_provider(name):
         try:

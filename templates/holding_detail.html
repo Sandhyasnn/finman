@@ -93,8 +93,8 @@
                     <td>{{ detail.current.cost | currency }}</td>
                     <td>{{ detail.current.current_price | currency(decimal=2) }}</td>
                     <td>{{ detail.current.current_value | currency }}</td>
-                    <td class ="{{ 'positive' if detail.current.gain_value is not none and detail.current.gain_value >= 0 else 'negative' }}">{{ detail.current.gain_value | currency }}</td>
-                    <td class ="{{ 'positive' if detail.current.gain_pct is not none and detail.current.gain_pct >= 0 else 'negative' }}">{{ detail.current.gain_pct | percent }}</td>
+                    <td class ="{{detail.current.gain_value | colour_class }}">{{ detail.current.gain_value | currency }}</td>
+                    <td class ="{{ detail.current.gain_pct | colour_class }}">{{ detail.current.gain_pct | percent }}</td>
                 </tr>
             </tbody>
         </table>
@@ -123,8 +123,8 @@
                     <td>{{ detail.total.cost | currency }}</td>
                     <td>{{ detail.total.current_price | currency(decimal=2) }}</td>
                     <td>{{ detail.total.current_value | currency }}</td>
-                    <td class ="{{ 'positive' if detail.total.gain_value is not none and detail.total.gain_value >= 0 else 'negative' }}">{{ detail.total.gain_value | currency }}</td>
-                    <td class ="{{ 'positive' if detail.total.gain_pct is not none and detail.total.gain_pct >= 0 else 'negative' }}">{{ detail.total.gain_pct  | percent }}</td>
+                    <td class ="{{ detail.total.gain_value | colour_class }}">{{ detail.total.gain_value | currency }}</td>
+                    <td class ="{{ detail.total.gain_pct | colour_class }}">{{ detail.total.gain_pct  | percent }}</td>
                 </tr>
             </tbody>
         </table>
@@ -153,8 +153,8 @@
                     <td>{{ detail.closed.cost | currency }}</td>
                     <td>—</td>
                     <td>{{ 0 | currency }}</td>
-                    <td class ="{{ 'positive' if detail.closed.gain_value is not none and detail.closed.gain_value >= 0 else 'negative' }}">{{ detail.closed.gain_value | currency }}</td>
-                    <td class ="{{ 'positive' if detail.closed.gain_pct is not none and detail.closed.gain_pct >= 0 else 'negative' }}">{{ detail.closed.gain_pct | percent }}</td>
+                    <td class ="{{ detail.closed.gain_value | colour_class }}">{{ detail.closed.gain_value | currency }}</td>
+                    <td class ="{{ detail.closed.gain_pct | colour_class }}">{{ detail.closed.gain_pct | percent }}</td>
                 </tr>
             </tbody>
         </table>
@@ -202,7 +202,7 @@
                     <td>{{ transaction.transaction_action }}</td>
                     <td>{{ transaction.transaction_quantity | decimal }}</td>
                     <td>{{ transaction.transaction_price | currency(decimal=2) }}</td>
-                    <td class ="{{ 'positive' if transaction.transaction_value is not none and transaction.transaction_value >= 0 else 'negative' }}">
+                    <td class ="{{ transaction.transaction_value | colour_class }}">
                         {{ transaction.transaction_value | currency}}</td>
                     <td>
                         <!-- If the position is CLOSED show 0 else the actual value -->
@@ -217,7 +217,7 @@
                             —
                         {% elif transaction.current_value is not none and transaction.transaction_value is not none %}
                             {% set gain = transaction.current_value + transaction.transaction_value %}
-                            <span class="{{ 'positive' if gain >= 0 else 'negative' }}">
+                            <span class="{{ gain | colour_class }}">
                                 {{ gain | currency }}
                             </span>
                         {% else %}
