@@ -29,8 +29,8 @@
                    {% if request.url.path == '/dashboard' %}class="active"{% endif %}>
                     Dashboard
                 </a> |
-                <a href="/portfolio?owner={{ selected_owner | urlencode }}"
-                   {% if request.url.path == '/portfolio' %}class="active"{% endif %}>
+                <a href="/portfolio?owner={{ selected_owner | urlencode }}{% if request.url.path == '/portfolio' %}&asset_type={{ selected_asset_type | urlencode }}{% endif %}"
+                {% if request.url.path == '/portfolio' %}class="active"{% endif %}>
                     Portfolio
                 </a> |
                 <a href="/broker?owner={{ selected_owner | urlencode }}"
@@ -57,8 +57,30 @@
                         </option>
                     {% endfor %}
                 </select>
+                <!-- Keep the selected asset type when switching owners on the portfolio page -->
+                {% if request.url.path == "/portfolio" or request.url.path == "/dashboard" %}
+                    <input type="hidden" name="asset_type"
+                        value="{{ request.query_params.get('asset_type', 'ALL') }}">
+                {% endif %}                             
             </form>
 
+            <!-- Show the asset type filter only on the portfolio page since it is not relevant for other pages -->
+            {% if request.url.path == "/portfolio" or request.url.path == "/dashboard" %}            
+                <form method="get" action="{{ request.url.path }}">
+                    <input type="hidden" name="owner" value="{{ selected_owner }}">
+                    <label for="asset_type">Asset Type: </label>
+                    <select id="asset_type" name="asset_type" onchange="this.form.submit()">
+                        {% for type_name, type_values in asset_types.items() %}
+                            <option value="{{ type_name }}"
+                                {% if request.query_params.get('asset_type', 'ALL') == type_name %}selected{% endif %}>
+                                {{ type_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            {% endif %}
+
+            <!-- Show the fiscal year filter only on the tax pages since it is not relevant for other pages -->
             {% if request.url.path == "/tax" or request.url.path == "/tax/broker" %}
                 <form method="get" action="{{ request.url.path }}">
                     <input type="hidden" name="owner" value="{{ selected_owner }}">
@@ -74,16 +96,17 @@
                 </form>
             {% endif %}
 
-            <a id="prices-link"
-               href="/refresh_prices?return_to={{ request.url.path }}&owner={{ selected_owner | urlencode }}"
-               onclick="return showLoadingAndNavigate(this);">
-                ↻ Prices
-            </a>
-
             <div class="menu-wrapper">
                 <button id="menuToggle" class="clickbtn" type="button">⋮ More</button>
-
                 <div id="menuDropdown" class="menu-dropdown">
+                    {% if request.url.path != "/tax" and request.url.path != "/tax/broker" %}
+                    <!-- Prices page is not relevant for tax pages since so dont show the refresh 
+                     prices link on those pages -->
+                        <a href="/refresh_prices?return_to={{ request.url.path }}&owner={{ selected_owner | urlencode }}{% if request.url.path == '/portfolio' %}&asset_type={{ selected_asset_type | urlencode }}{% endif %}"
+                        onclick="return showLoadingAndNavigate(this);">
+                            ↻ Prices
+                        </a>
+                    {% endif %}
                     <a href="/status?return_url={{ (request.url.path ~ '?owner=' ~ selected_owner) | urlencode }}"
                         onclick="return showLoadingAndNavigate(this, 'Loading Status…');">
                         Status

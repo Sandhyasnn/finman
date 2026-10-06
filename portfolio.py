@@ -566,15 +566,18 @@ def build_holding_detail(
         closed=closed,
     )
 
-def build_portfolio_view(transactions: list[Transaction], holdings: list[Holding], owner: str | None = None) -> PortfolioView:
+def build_portfolio_view(transactions: list[Transaction], holdings: list[Holding], owner: str | None = None,
+                         asset_types: list[str] | None = None,) -> PortfolioView:
     """Build the Portfolio view grouped by asset type and owner."""
 
-    # Filter the holdings based on owner or none for ALL
-    filtered_holdings = [
-        holding
-        for holding in holdings
-        if owner is None or holding.owner == owner
-    ]
+    # Filter the holdings based on owner or none for ALL and selected asset types
+    filtered_holdings = []
+    for holding in holdings:
+        if owner is not None and holding.owner != owner:
+            continue
+        if asset_types is not None and None not in asset_types and holding.asset_type not in asset_types:
+            continue
+        filtered_holdings.append(holding)      
 
     sections = []   
 

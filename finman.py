@@ -195,6 +195,20 @@ def _resolve_owners(owner: str, owner_map: dict[str, list[str]]) -> list[str | N
 
     return owner_map[owner]
 
+def _resolve_asset_types(asset_type: str, asset_type_map: dict[str, list[str]]) -> list[str | None]:
+    """
+    Resolve the UI asset type selection into underlying asset types.
+
+    Returns:
+        [None]                         when ALL asset types are requested
+        [asset_type]                   for a single asset type
+        [asset_type1, asset_type2, ...] for a grouped UI asset type
+    """
+    if asset_type == "ALL":
+        return [None]
+
+    return asset_type_map[asset_type]
+
 # ------------------------------------------------------------
 # Application lifespan
 # ------------------------------------------------------------
@@ -247,7 +261,7 @@ async def lifespan(app: FastAPI):
     # 7. Initialize Research using the same validated configuration
     # used by the rest of FinMan.
     configure_research(app.state.config, BASE_DIR)
-    app.state.research_status = run_research_refresh()
+    # app.state.research_status = run_research_refresh()
 
     # 8. Application is ready to serve requests.
     yield
@@ -520,16 +534,22 @@ def ingest(request: Request):
     }
 
 @app.get("/refresh_prices", dependencies=[Depends(require_login)])
-def refresh_prices_route(request: Request, return_to: str = "/portfolio", owner: str = "ALL"):
+def refresh_prices_route(request: Request, return_to: str = "/portfolio", owner: str = "ALL",
+                         asset_type: str | None = None,):
     """
     Refresh current market prices without restarting FinMan.
     """
-    logger.debug("\n" + "=" * 50 + f" Accessed /refresh_prices?Return_to={return_to}&owner={owner}")
+    logger.debug("\n" + "=" * 50 + f" Accessed /refresh_prices?Return_to={return_to}"
+                 + f"&owner={owner}&asset_type={asset_type}")
 
     run_price_refresh(request.app)
 
+    redirect_url = f"{return_to}?owner={owner}"
+    if asset_type:
+        redirect_url += f"&asset_type={asset_type}"
+
     # return detail.model_dump(mode="json")
-    return RedirectResponse(url=f"{return_to}?owner={owner}")
+    return RedirectResponse(url=redirect_url)
 
 @app.get("/reingest", dependencies=[Depends(require_login)])
 def reingest(request: Request, return_url: str = "/portfolio"):
@@ -544,22 +564,31 @@ def reingest(request: Request, return_url: str = "/portfolio"):
     return RedirectResponse(url=return_url)
 
 @app.get("/portfolio", dependencies=[Depends(require_login)])#, response_class=HTMLResponse)
-def portfolio(request: Request, owner: str | None = None):
-    logger.debug("\n" + "=" * 50 + f" Accessed /portfolio?owner={owner} ")
+def portfolio(request: Request, owner: str | None = None, asset_type: str | None = None,):
+    logger.debug("\n" + "=" * 50 + f" Accessed /portfolio?owner={owner}&asset_type={asset_type}")
     
-    # Extract all the owners in the transactions
+    # Extract all the owners and asset_types in the transactions
     owners = request.app.state.config.frontend.owners
+    asset_type_map = request.app.state.config.frontend.asset_types
 
     # Use the configured default owner when no owner is supplied in the URL.
     if owner is None:
         owner = request.app.state.config.frontend.default_owner
+    if asset_type is None:
+        asset_type = request.app.state.config.frontend.default_asset_type
 
     selected_owners = _resolve_owners(owner, owners)
+    selected_asset_types = _resolve_asset_types(asset_type, asset_type_map)
+
+    # logger.debug(f"Portfolio filters: owner={owner}, " f"asset_type={asset_type}, "
+    #     f"resolved_asset_types={selected_asset_types}" )
 
     sections = []
 
     for selected_owner in selected_owners:
-        owner_view = build_portfolio_view(request.app.state.transactions, request.app.state.holdings, owner=selected_owner)
+        owner_view = build_portfolio_view(request.app.state.transactions, request.app.state.holdings, 
+                                          owner=selected_owner,
+                                          asset_types=selected_asset_types)
         sections.extend(owner_view.sections)
     view = PortfolioView(owner=owner, sections=sections)
 
@@ -569,10 +598,12 @@ def portfolio(request: Request, owner: str | None = None):
         for holding in section.holdings
     ]
     view_owners = {holding.owner for holding in all_view_holdings}
+     # Restrict transactions to the same asset types as the displayed holdings.
     view_transactions = [
         transaction
         for transaction in request.app.state.transactions
         if transaction.owner in view_owners
+        and (asset_type == "ALL" or transaction.asset_type in selected_asset_types)        
     ]
     overall_summary = build_portfolio_summary(all_view_holdings, view_transactions)
     view.summary = overall_summary
@@ -593,8 +624,10 @@ def portfolio(request: Request, owner: str | None = None):
             "view": view,
             "owners": owners,
             "selected_owner": owner,
+            "asset_types": asset_type_map,            
+            "selected_asset_type": asset_type,
             "view_url": "/portfolio",   # "/broker" for Broker
-            "total_by_key": total_by_key
+            "total_by_key": total_by_key,
         },
     )
     # return view.model_dump(mode="json")
@@ -924,7 +957,7 @@ def tax_holding_detail(request: Request, fy: str, owner: str, asset_type: str,
 
 @app.get("/", dependencies=[Depends(require_login)])
 @app.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(require_login)])
-def dashboard(request: Request, owner: str | None = None):
+def dashboard(request: Request, owner: str | None = None, asset_type: str | None = None):
     """
     Render the Portfolio Dashboard.
     The dashboard combines two independent data sources:
@@ -949,21 +982,26 @@ def dashboard(request: Request, owner: str | None = None):
     # ------------------------------------------------------------
     # Owner selection
     # ------------------------------------------------------------
-    # Get the configured UI owners.  These may represent either
-    # individual owners or groups of underlying owners.
+    # Get the configured UI owners and asset types.  These may represent either
+    # individual owners / asset_types or groups of underlying owners / asset_types.
     owners = request.app.state.config.frontend.owners
+    asset_type_map = request.app.state.config.frontend.asset_types
 
-    # Use the configured default owner when no owner is supplied.
+    # Use the configured default owner / asset_type when no owner / asset_type is supplied.
     if owner is None:
         owner = request.app.state.config.frontend.default_owner
+    if asset_type is None:
+        asset_type = request.app.state.config.frontend.default_asset_type
 
-    # Resolve the UI owner into the actual underlying owner IDs.
+    # Resolve the UI owner / Asset Type into the actual underlying IDs.
     #
     # For example:
     #   "RSN"   -> ["RSN"]
     #   "FAMILY" -> ["RSN", "MALT"]
     #   "ALL"   -> [None]
+    #   "MF" -> ["MF(Equity)", "MF(Debt)"]
     selected_owners = _resolve_owners(owner, owners)
+    selected_asset_types = _resolve_asset_types(asset_type, asset_type_map)
 
     # ----------------------------------------------------------
     # Consolidated investments
@@ -994,7 +1032,8 @@ def dashboard(request: Request, owner: str | None = None):
     sections = []
 
     for selected_owner in selected_owners:
-        owner_view = build_portfolio_view(request.app.state.transactions, request.app.state.holdings, owner=selected_owner)
+        owner_view = build_portfolio_view(request.app.state.transactions, request.app.state.holdings, 
+                                          owner=selected_owner, asset_types=selected_asset_types)
         sections.extend(owner_view.sections)
 
     # ------------------------------------------------------------
@@ -1053,6 +1092,8 @@ def dashboard(request: Request, owner: str | None = None):
         {
             "owners": owners,
             "selected_owner": owner,
+            "asset_types": asset_type_map,
+            "selected_asset_type": asset_type,            
             "consolidated": consolidated,
             "shares_mf_summary": shares_mf_summary,
         },

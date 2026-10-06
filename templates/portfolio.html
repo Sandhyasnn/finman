@@ -3,6 +3,7 @@
 
 
 {% block view_content %}
+{% set portfolio_return_url = view_url ~ '?owner=' ~ view.owner ~ '&asset_type=' ~ selected_asset_type %}
 {% if view.sections %}
     <div class="portfolio">
         <table>
@@ -45,7 +46,7 @@
                         <tr>
                             <td class="security-cell">
                                 <div class="security-name">
-                                    <a href="/holding/{{ holding.owner }}/{{ holding.asset_type }}/{{ holding.broker }}/{{ holding.security }}?return_url={{ (view_url ~ '?owner=' ~ view.owner) | urlencode }}">
+                                    <a href="/holding/{{ holding.owner }}/{{ holding.asset_type }}/{{ holding.broker }}/{{ holding.security }}?return_url={{ portfolio_return_url | urlencode }}">                                      
                                         {{ holding.security }}
                                     </a>
                                     <span class="info-icon" title="Asset type: {{ holding.asset_type }}{% if holding.asset_subtype %}&#10;Asset subtype: {{ holding.asset_subtype }}{% endif %}">ⓘ</span>     
@@ -58,7 +59,7 @@
                                         {# Research is an internal FinMan page.Open it in the same tab and pass the current page
                                          as return_url, so the Research page can provide a "← Home" link back here. #}
                                         {% if link.url.startswith('/research/') %}
-                                            <a href="{{ link.url }}?return_url={{ (view_url ~ '?owner=' ~ view.owner) | urlencode }}"
+                                            <a href="{{ link.url }}?return_url={{ portfolio_return_url | urlencode }}"                                            
                                             title="{{ link.label }}">
                                         {# All other links are external sites such as Google, Yahoo Finance, etc.
                                         Open these in a separate browser tab. #}                                            
@@ -75,7 +76,7 @@
 
                                     {% if request.app.state.config.ai.enabled %}
                                         •
-                                        <a href="/ai/holding/{{ holding.owner }}/{{ holding.asset_type }}/{{ holding.broker }}/{{ holding.security }}?return_url={{ (view_url ~ '?owner=' ~ view.owner) | urlencode }}"
+                                        <a href="/ai/holding/{{ holding.owner }}/{{ holding.asset_type }}/{{ holding.broker }}/{{ holding.security }}?return_url={{ portfolio_return_url | urlencode }}"
                                         title="AI analysis" onclick="return showLoadingAndNavigate(this, '🤖 Thinking…');">
                                           ✨AI
                                         </a>

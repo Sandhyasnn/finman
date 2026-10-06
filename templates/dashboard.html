@@ -69,7 +69,11 @@
     <tbody>
         {% for item in shares_mf_summary %}
         <tr>
-            <td>{{ item.asset_type }}</td>
+            <td>
+                <a href="/portfolio?owner={{ selected_owner | urlencode }}&asset_type={{ item.asset_type | urlencode }}">
+                    {{ item.asset_type }}
+                </a>
+            </td>            
             <td>{{ item.invested_value | currency }}</td>
             <td>{{ item.current_value | currency }}</td>
             <td>{{ item.gain | currency }}</td>
